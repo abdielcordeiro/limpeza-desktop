@@ -1,6 +1,6 @@
 # Arquitetura Técnica & Especificação de Design
 
-Este documento especifica a arquitetura técnica do **Analisador de Limpeza e Saúde de Discos Windows**, detalhando como o sistema funciona, por que ele funciona sem gerar falsos positivos, o papel de cada módulo e as diretrizes para extensões futuras.
+Este documento especifica a arquitetura técnica do **Analisador de Limpeza, Saúde de Discos e Atualizações de Softwares Windows**, detalhando como o sistema funciona, por que ele funciona sem gerar falsos positivos, o papel de cada módulo e as diretrizes para extensões futuras.
 
 ---
 
@@ -10,19 +10,21 @@ O sistema é construído como uma aplicação Python modular e desacoplada, comp
 
 ```mermaid
 graph TD
-    A[main.py - Orquestrador CLI] --> B[core/partitions.py]
+    A[main.py - Orquestrador CLI com Menu] --> B[core/partitions.py]
     A --> C[core/active_apps.py]
     A --> D[core/scanner.py]
     A --> E[core/evaluator.py]
     A --> F[core/onedrive.py]
-    A --> G[reporters/html_reporter.py]
+    A --> G[core/outdated_apps.py]
+    A --> H[reporters/html_reporter.py]
     
     B -->|Partições & Alertas| E
     C -->|Termos de Apps Ativos| E
     D -->|Arquivos & Tamanhos de Pastas| E
-    E -->|Dados Avaliados & Riscos| G
-    F -->|Diagnóstico OneDrive| G
-    G -->|Gera relatorio_limpeza_disco.html| H[outputs/relatorio_limpeza_disco.html]
+    E -->|Dados Avaliados & Riscos| H
+    F -->|Diagnóstico OneDrive| H
+    G -->|Softwares & Versões Winget| H
+    H -->|Gera relatorio_limpeza_disco.html com 6 Abas| I[outputs/relatorio_limpeza_disco.html]
 ```
 
 ---
@@ -79,9 +81,13 @@ Uma pasta só é elegível para análise de resíduo se **nenhum** termo de seu 
 - **Função**: Avaliação do impacto do OneDrive.
 - **Como Funciona**: Localiza as pastas do OneDrive no perfil do usuário, mede a soma dos arquivos físicos sincronizados no disco local e retorna o plano de ação de desvinculação em 3 passos.
 
-### 6. `reporters/html_reporter.py`
-- **Função**: Renderizador do Dashboard HTML Interativo.
-- **Como Funciona**: Injeta a estrutura de dados JSON em um template HTML estático autônomo com CSS HSL (Dark Mode) e JavaScript Vanilla. Inclui salvamento de progresso de limpeza no `localStorage` sob a chave `resolved_disk_items`.
+### 6. `core/outdated_apps.py`
+- **Função**: Análise de softwares desatualizados via Winget.
+- **Como Funciona**: Executa `winget upgrade --include-unknown` capturando versão instalada, versão disponível, risco da atualização (patch vs major release) e o comando `winget upgrade --id <Id>`. Cruza locais de instalação no registro do Windows para indicar a partição correspondente.
+
+### 7. `reporters/html_reporter.py`
+- **Função**: Renderizador do Dashboard HTML Interativo (6 Abas).
+- **Como Funciona**: Injeta a estrutura de dados JSON em um template HTML estático autônomo com CSS HSL (Dark Mode) e JavaScript Vanilla. Inclui salvamento de progresso no `localStorage` sob as chaves `resolved_disk_items` e `resolved_outdated_apps`.
 
 ---
 
@@ -89,5 +95,6 @@ Uma pasta só é elegível para análise de resíduo se **nenhum** termo de seu 
 
 - **Adicionar novas ferramentas à Whitelist**: Edite a função `get_developer_whitelist()` em `core/active_apps.py`.
 - **Adicionar novas regras de temporários descartáveis**: Modifique a lista `trash_indicators` em `core/evaluator.py`.
+- **Modificar a detecção de atualizações**: Ajuste as regras de parsing e avaliação de risco em `core/outdated_apps.py`.
 - **Alterar o visual ou estilos do relatório**: Edite as variáveis CSS `:root` e o HTML em `reporters/html_reporter.py`.
 - **Adicionar um novo formato de exportação (ex: JSON, Markdown)**: Crie um novo módulo em `reporters/` (ex: `reporters/json_reporter.py`) e invoque-o em `main.py`.

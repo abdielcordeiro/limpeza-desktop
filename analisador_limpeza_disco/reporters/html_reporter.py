@@ -9,20 +9,22 @@ def generate_html_report(
     clean_suggestions: List[Dict[str, Any]],
     migration_suggestions: List[Dict[str, Any]],
     onedrive_info: Dict[str, Any],
+    outdated_apps: List[Dict[str, Any]] = None,
     output_filename: str = "relatorio_limpeza_disco.html"
 ) -> str:
     """
-    Gera o Dashboard HTML Interativo completo com 5 abas, layout horizontal expandido,
-    filtro corrigido por partição para Maiores Ocupantes, análise aprofundada dos gargalos da AppData e salvamento via localStorage.
+    Gera o Dashboard HTML Interativo completo com 6 abas, layout horizontal expandido,
+    análise de atualizações de software (winget) e salvamento via localStorage.
     """
     
     # Prepara os dados serializados em JSON para consumo seguro no JavaScript do Dashboard
     data_json = json.dumps({
-        'partitions': partitions,
-        'top_occupants': top_occupants,
-        'clean_suggestions': clean_suggestions,
-        'migration_suggestions': migration_suggestions,
-        'onedrive_info': onedrive_info
+        'partitions': partitions or [],
+        'top_occupants': top_occupants or [],
+        'clean_suggestions': clean_suggestions or [],
+        'migration_suggestions': migration_suggestions or [],
+        'onedrive_info': onedrive_info or {},
+        'outdated_apps': outdated_apps or []
     }, ensure_ascii=False)
 
     html_content = """<!DOCTYPE html>
@@ -540,6 +542,7 @@ def generate_html_report(
         <button class="tab-btn" onclick="switchTab('tab-occupants', this)">📁 Maiores Ocupantes</button>
         <button class="tab-btn" onclick="switchTab('tab-migration', this)">🚚 Guia de Migração (C: -> D:)</button>
         <button class="tab-btn" onclick="switchTab('tab-onedrive', this)">☁️ Diagnóstico OneDrive</button>
+        <button class="tab-btn" onclick="switchTab('tab-outdated', this)">📦 Atualização de Softwares (<span id="count-outdated-badge">0</span>)</button>
     </nav>
 
     <main class="container">
@@ -715,6 +718,60 @@ def generate_html_report(
             <div id="onedrive-steps-list"></div>
         </div>
 
+        <!-- ABA 6: Atualização de Softwares -->
+        <div id="tab-outdated" class="tab-content">
+            <h2 style="margin-bottom: 1rem;">Atualização & Upgrade de Softwares Instalados (Winget)</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                Mantenha seus softwares atualizados para prevenir vulnerabilidades e melhorar o desempenho. Copie o comando de atualização individual ou rode o upgrade global.
+            </p>
+
+            <div class="card" style="margin-bottom: 1.5rem; border-color: var(--accent-primary); background: rgba(56, 189, 248, 0.05);">
+                <div class="card-header" style="margin-bottom: 0.5rem;">
+                    <div class="card-title" style="color: var(--accent-primary);">⚡ Comando Global de Atualização</div>
+                    <span class="badge success" id="outdated-summary-badge">0 Apps Pendentes</span>
+                </div>
+                <p style="font-size: 0.88rem; color: var(--text-main); margin-bottom: 0.75rem;">
+                    Para atualizar todos os softwares suportados no Windows de uma só vez via terminal PowerShell / CMD como Administrador:
+                </p>
+                <div class="path-container">
+                    <span class="path-code" style="font-size: 0.88rem; font-weight: 700; color: #38BDF8;">winget upgrade --all --include-unknown</span>
+                    <button class="btn-copy" onclick="copyToClipboard('winget%20upgrade%20--all%20--include-unknown', this)" title="Copiar Comando Global">📋 Copiar Comando Global</button>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <input type="text" id="search-outdated" class="filter-input" placeholder="🔍 Filtrar por nome do software ou ID..." oninput="filterOutdatedTable()">
+                <select id="filter-outdated-risk" class="filter-select" onchange="filterOutdatedTable()">
+                    <option value="ALL">Todos os Níveis de Risco</option>
+                    <option value="Baixo">Apenas Baixo Risco (Incremental/Patch)</option>
+                    <option value="Médio">Apenas Médio/Alto Risco (Major/Indefinida)</option>
+                </select>
+                <select id="filter-outdated-drive" class="filter-select" onchange="filterOutdatedTable()">
+                    <option value="ALL">Todas as Partições</option>
+                </select>
+                <button class="toggle-resolved-btn" id="btn-toggle-outdated-resolved" onclick="toggleOutdatedShowResolved(this)">
+                    👁️ Mostrar Apps Concluídos (<span id="resolved-outdated-count-badge">0</span>)
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="col-check">OK</th>
+                            <th style="min-width: 180px;">Aplicativo / ID</th>
+                            <th style="width: 130px;">Versão Atual</th>
+                            <th style="width: 130px;">Nova Versão</th>
+                            <th style="min-width: 240px;">Risco & Diagnóstico do Upgrade</th>
+                            <th style="width: 80px; text-align: center;">Partição</th>
+                            <th style="min-width: 250px;">Comando Winget</th>
+                        </tr>
+                    </thead>
+                    <tbody id="outdated-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
     </main>
 
     <footer>
@@ -726,8 +783,10 @@ def generate_html_report(
 
         // Estado inicial e persistência no localStorage
         let resolvedItems = JSON.parse(localStorage.getItem('resolved_disk_items') || '[]');
+        let resolvedOutdated = JSON.parse(localStorage.getItem('resolved_outdated_apps') || '[]');
         let selectedCategory = 'ALL';
         let showResolved = false;
+        let showOutdatedResolved = false;
 
         function escapeHtml(str) {
             if (!str) return '';
@@ -885,6 +944,16 @@ def generate_html_report(
                     }
                 });
             }
+
+            const outdatedTbody = document.getElementById('outdated-table-body');
+            if (outdatedTbody) {
+                outdatedTbody.addEventListener('change', function(e) {
+                    if (e.target && e.target.classList.contains('outdated-checkbox')) {
+                        const appId = e.target.getAttribute('data-id');
+                        toggleOutdatedItemResolved(appId);
+                    }
+                });
+            }
         }
 
         function toggleItemResolved(path) {
@@ -958,6 +1027,7 @@ def generate_html_report(
         function populateDriveFilterOptions() {
             const cleanSelect = document.getElementById('filter-drive');
             const occSelect = document.getElementById('filter-occupants-drive');
+            const outdSelect = document.getElementById('filter-outdated-drive');
 
             if (!rawData.partitions) return;
             rawData.partitions.forEach(p => {
@@ -972,6 +1042,12 @@ def generate_html_report(
                     opt.value = p.drive_letter;
                     opt.innerText = `Partição ${p.drive_letter}`;
                     occSelect.appendChild(opt);
+                }
+                if (outdSelect) {
+                    const opt = document.createElement('option');
+                    opt.value = p.drive_letter;
+                    opt.innerText = `Partição ${p.drive_letter}`;
+                    outdSelect.appendChild(opt);
                 }
             });
         }
@@ -1135,6 +1211,113 @@ def generate_html_report(
             `).join('');
         }
 
+        function renderOutdatedTable() {
+            const tbody = document.getElementById('outdated-table-body');
+            const countBadge = document.getElementById('count-outdated-badge');
+            const summaryBadge = document.getElementById('outdated-summary-badge');
+
+            const totalCount = rawData.outdated_apps ? rawData.outdated_apps.length : 0;
+            if (countBadge) countBadge.innerText = totalCount;
+            if (summaryBadge) summaryBadge.innerText = `${totalCount} Apps Pendentes`;
+
+            if (!tbody) return;
+
+            if (!rawData.outdated_apps || rawData.outdated_apps.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--success-color); font-weight: 600;">Todos os seus softwares estão atualizados! Nenhuma atualização pendente.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = rawData.outdated_apps.map((item, idx) => {
+                const isResolved = resolvedOutdated.includes(item.id);
+                const safeCmdAttr = encodeURIComponent(item.upgrade_cmd);
+                const isMajor = String(item.risk_level).toLowerCase().includes('major') || String(item.risk_level).toLowerCase().includes('médio');
+
+                return `
+                    <tr class="${isResolved ? 'resolved' : ''}" id="row-outdated-${idx}" data-id="${escapeHtml(item.id)}" data-drive="${escapeHtml(item.drive)}" data-risk="${isMajor ? 'médio' : 'baixo'}" data-resolved="${isResolved ? 'true' : 'false'}">
+                        <td class="col-check">
+                            <input type="checkbox" class="custom-checkbox outdated-checkbox" data-id="${escapeHtml(item.id)}" ${isResolved ? 'checked' : ''}>
+                        </td>
+                        <td class="col-name">
+                            <div>${escapeHtml(item.name)}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">${escapeHtml(item.id)}</div>
+                        </td>
+                        <td><span class="badge purple">${escapeHtml(item.current_version)}</span></td>
+                        <td><span class="badge success">${escapeHtml(item.latest_version)}</span></td>
+                        <td class="col-diag">
+                            <div><span class="badge ${escapeHtml(item.risk_badge)}">${escapeHtml(item.risk_level)}</span></div>
+                            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">${escapeHtml(item.risk_reason)}</div>
+                        </td>
+                        <td class="col-drive"><strong>${escapeHtml(item.drive)}</strong></td>
+                        <td class="col-path">
+                            <div class="path-container">
+                                <span class="path-code">${escapeHtml(item.upgrade_cmd)}</span>
+                                <button class="btn-copy" onclick="copyToClipboard('${safeCmdAttr}', this)" title="Copiar comando de upgrade">📋 Copiar</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function toggleOutdatedShowResolved(btn) {
+            showOutdatedResolved = !showOutdatedResolved;
+            if (btn) {
+                if (showOutdatedResolved) {
+                    btn.classList.add('active');
+                    btn.innerHTML = `👁️ Ocultar Apps Concluídos (<span id="resolved-outdated-count-badge">${resolvedOutdated.length}</span>)`;
+                } else {
+                    btn.classList.remove('active');
+                    btn.innerHTML = `👁️ Mostrar Apps Concluídos (<span id="resolved-outdated-count-badge">${resolvedOutdated.length}</span>)`;
+                }
+            }
+            filterOutdatedTable();
+        }
+
+        function toggleOutdatedItemResolved(appId) {
+            if (resolvedOutdated.includes(appId)) {
+                resolvedOutdated = resolvedOutdated.filter(id => id !== appId);
+            } else {
+                resolvedOutdated.push(appId);
+            }
+            localStorage.setItem('resolved_outdated_apps', JSON.stringify(resolvedOutdated));
+            renderOutdatedTable();
+            filterOutdatedTable();
+        }
+
+        function filterOutdatedTable() {
+            const search = document.getElementById('search-outdated') ? document.getElementById('search-outdated').value.toLowerCase() : '';
+            const risk = document.getElementById('filter-outdated-risk') ? document.getElementById('filter-outdated-risk').value : 'ALL';
+            const drive = document.getElementById('filter-outdated-drive') ? document.getElementById('filter-outdated-drive').value : 'ALL';
+
+            document.querySelectorAll('#outdated-table-body tr').forEach(row => {
+                const text = row.innerText.toLowerCase();
+                const matchesSearch = text.includes(search);
+                
+                const rowDrive = row.getAttribute('data-drive');
+                const rowRisk = row.getAttribute('data-risk');
+                const isResolved = row.getAttribute('data-resolved') === 'true';
+
+                const matchesDrive = matchDriveString(rowDrive, drive);
+                let matchesRisk = true;
+                if (risk === 'Baixo') {
+                    matchesRisk = rowRisk === 'baixo';
+                } else if (risk === 'Médio') {
+                    matchesRisk = rowRisk === 'médio';
+                }
+
+                let matchesResolvedVis = true;
+                if (isResolved && !showOutdatedResolved) {
+                    matchesResolvedVis = false;
+                }
+
+                if (matchesSearch && matchesRisk && matchesDrive && matchesResolvedVis) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
         function copyToClipboard(encodedPath, btn) {
             const rawPath = decodeURIComponent(encodedPath);
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1181,10 +1364,12 @@ def generate_html_report(
             renderOccupantsTable();
             renderMigrationTable();
             renderOneDriveInfo();
+            renderOutdatedTable();
             populateDriveFilterOptions();
             setupEventListeners();
             updateStats();
             filterCleanTable();
+            filterOutdatedTable();
         }
 
         window.onload = initApp;
