@@ -1,0 +1,13 @@
+# Python bytecode e caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Relatórios temporários e outputs gerados
+analisador_limpeza_disco/outputs/*.html
+!analisador_limpeza_disco/outputs/.gitkeep
+
+# Ambientes virtuais
+.venv/
+venv/
+ENV/
