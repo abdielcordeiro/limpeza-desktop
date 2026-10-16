@@ -1,0 +1,261 @@
+{
+  "catalog_version": "2.0.0",
+  "os_platform": "macos",
+  "zero_network_verified": true,
+  "tweaks": [
+    {
+      "id": "MacFlushDNS",
+      "name": "Limpar Cache DNS e Reiniciar mDNSResponder",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "macos",
+      "preset": "minimal",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Executa dscacheutil -flushcache e envia sinal HUP para mDNSResponder quando possível para limpar resoluções DNS obsoletas.",
+      "benefit": "Corrige lentidão na resolução de domínios e conexões de rede.",
+      "undo_hint": "O cache DNS é reconstruído automaticamente pelo macOS.",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "dscacheutil -flushcache"
+      ],
+      "undo_commands": []
+    },
+    {
+      "id": "MacSpeedUpDock",
+      "name": "Remover Atraso de Ocultação e Acelerar Animação do Dock",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "macos",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Configura autohide-delay = 0 e autohide-time-modifier = 0.15 em com.apple.dock e reinicia o Dock.",
+      "benefit": "Torna a resposta do Dock instantânea ao encostar o cursor na borda da tela.",
+      "undo_hint": "Remove as customizações autohide-delay e autohide-time-modifier e reinicia o Dock.",
+      "registry_changes": [
+        {
+          "domain": "com.apple.dock",
+          "key": "autohide-delay",
+          "type": "float",
+          "value": 0.0,
+          "original_value": null
+        },
+        {
+          "domain": "com.apple.dock",
+          "key": "autohide-time-modifier",
+          "type": "float",
+          "value": 0.15,
+          "original_value": null
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "defaults write com.apple.dock autohide-delay -float 0",
+        "defaults write com.apple.dock autohide-time-modifier -float 0.15",
+        "killall Dock"
+      ],
+      "undo_commands": [
+        "defaults delete com.apple.dock autohide-delay",
+        "defaults delete com.apple.dock autohide-time-modifier",
+        "killall Dock"
+      ]
+    },
+    {
+      "id": "MacFastWindowResize",
+      "name": "Acelerar Animação de Redimensionamento de Janelas Cocoa",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "macos",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Reduz NSWindowResizeTime para 0.001s em NSGlobalDomain para que diálogos e janelas abram instantaneamente.",
+      "benefit": "Sensação de maior fluidez ao abrir caixas de diálogo de arquivos.",
+      "undo_hint": "Executa defaults delete NSGlobalDomain NSWindowResizeTime.",
+      "registry_changes": [
+        {
+          "domain": "NSGlobalDomain",
+          "key": "NSWindowResizeTime",
+          "type": "float",
+          "value": 0.001,
+          "original_value": null
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "defaults write NSGlobalDomain NSWindowResizeTime -float 0.001"
+      ],
+      "undo_commands": [
+        "defaults delete NSGlobalDomain NSWindowResizeTime"
+      ]
+    },
+    {
+      "id": "MacDisableFinderAnimations",
+      "name": "Desativar Animações Pesadas no Finder",
+      "category": "Performance & Tweaks Avançados",
+      "panel": "advanced",
+      "os_platform": "macos",
+      "preset": "advanced",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Define DisableAllAnimations = true em com.apple.finder para acelerar abertura de pastas e painel Obter Informações.",
+      "benefit": "Navegação de diretórios no Finder mais rápida e sem espera de transição.",
+      "undo_hint": "Remove DisableAllAnimations de com.apple.finder e reinicia o Finder.",
+      "registry_changes": [
+        {
+          "domain": "com.apple.finder",
+          "key": "DisableAllAnimations",
+          "type": "bool",
+          "value": true,
+          "original_value": false
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "defaults write com.apple.finder DisableAllAnimations -bool true",
+        "killall Finder"
+      ],
+      "undo_commands": [
+        "defaults delete com.apple.finder DisableAllAnimations",
+        "killall Finder"
+      ]
+    },
+    {
+      "id": "MacDisableLaunchpadAnim",
+      "name": "Transição Instantânea no Launchpad",
+      "category": "Performance & Tweaks Avançados",
+      "panel": "advanced",
+      "os_platform": "macos",
+      "preset": "advanced",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Zera springboard-show-duration e springboard-hide-duration em com.apple.dock.",
+      "benefit": "Abertura e fechamento imediato do Launchpad sem fade lento.",
+      "undo_hint": "Restaura a duração padrão do Launchpad via defaults delete.",
+      "registry_changes": [
+        {
+          "domain": "com.apple.dock",
+          "key": "springboard-show-duration",
+          "type": "float",
+          "value": 0.0,
+          "original_value": null
+        },
+        {
+          "domain": "com.apple.dock",
+          "key": "springboard-hide-duration",
+          "type": "float",
+          "value": 0.0,
+          "original_value": null
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "defaults write com.apple.dock springboard-show-duration -float 0",
+        "defaults write com.apple.dock springboard-hide-duration -float 0",
+        "killall Dock"
+      ],
+      "undo_commands": [
+        "defaults delete com.apple.dock springboard-show-duration",
+        "defaults delete com.apple.dock springboard-hide-duration",
+        "killall Dock"
+      ]
+    },
+    {
+      "id": "MacDisableCrashDialog",
+      "name": "Substituir Popups Intrusivos de CrashReporter por Log Silencioso",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "macos",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Define DialogType = none em com.apple.CrashReporter para evitar janelas modais que interrompem o foco.",
+      "benefit": "Evita popups de envio de relatório à Apple mantendo logs locais se necessário.",
+      "undo_hint": "Restaura DialogType = crashreport em com.apple.CrashReporter.",
+      "registry_changes": [
+        {
+          "domain": "com.apple.CrashReporter",
+          "key": "DialogType",
+          "type": "string",
+          "value": "none",
+          "original_value": "crashreport"
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "defaults write com.apple.CrashReporter DialogType none"
+      ],
+      "undo_commands": [
+        "defaults write com.apple.CrashReporter DialogType crashreport"
+      ]
+    },
+    {
+      "id": "MacThinTimeMachineSnapshots",
+      "name": "Reduzir Snapshots Locais APFS do Time Machine",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "macos",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Solicita ao tmutil o enxugamento de snapshots APFS locais antigos (thinlocalsnapshots / 10000000000 4).",
+      "benefit": "Recupera espaço retido como 'Purgável' pelo APFS no SSD principal.",
+      "undo_hint": "Operação nativa de gerenciamento de espaço purgável do Time Machine.",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "tmutil thinlocalsnapshots / 10000000000 4"
+      ],
+      "undo_commands": []
+    },
+    {
+      "id": "MacRebuildLaunchServices",
+      "name": "Reconstruir Banco de Dados do Menu 'Abrir Com' (LaunchServices)",
+      "category": "Reparos do Sistema",
+      "panel": "fixes",
+      "os_platform": "macos",
+      "preset": "fixes",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Executa lsregister -kill -r -domain local -domain system -domain user para remover itens duplicados no menu Abrir Com.",
+      "benefit": "Corrige associações de arquivos quebradas e ícones duplicados.",
+      "undo_hint": "O macOS reindexa automaticamente os aplicativos instalados.",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user"
+      ],
+      "undo_commands": []
+    },
+    {
+      "id": "MacVerifyAPFS",
+      "name": "Verificar Integridade Estrutural do Volume APFS",
+      "category": "Reparos do Sistema",
+      "panel": "fixes",
+      "os_platform": "macos",
+      "preset": "fixes",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Executa diskutil verifyVolume / em modo somente leitura para diagnosticar a saúde da árvore APFS.",
+      "benefit": "Garante que o sistema de arquivos não possui inconsistências estruturais.",
+      "undo_hint": "Operação diagnóstica não destrutiva.",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "diskutil verifyVolume /"
+      ],
+      "undo_commands": []
+    }
+  ]
+}

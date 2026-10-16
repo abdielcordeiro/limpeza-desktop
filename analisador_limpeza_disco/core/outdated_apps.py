@@ -3,8 +3,12 @@ import os
 import sys
 import re
 import subprocess
-import winreg
 from typing import List, Dict, Any, Tuple
+
+try:
+    import winreg
+except ImportError:
+    winreg = None  # type: ignore
 
 def get_installed_apps_locations() -> Dict[str, str]:
     """
@@ -12,6 +16,8 @@ def get_installed_apps_locations() -> Dict[str, str]:
     mapeando o nome em caixa baixa para a letra do drive/caminho.
     """
     locations = {}
+    if not winreg or os.name != "nt":
+        return locations
     registry_paths = [
         (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
         (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
