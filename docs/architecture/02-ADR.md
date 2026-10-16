@@ -69,3 +69,23 @@ Este documento registra as decisões arquiteturais críticas do projeto **Limpez
   3. Enriquecer `OccupantItem` com `sub_occupants` computados dinamicamente no `disk_scanner.py`, renderizados com botão de expansão accordion elegante na tabela do Passo 5.
   4. Adicionar botões de navegação no cabeçalho do Dashboard: "⚙️ Nova Configuração / Início" e "🔄 Reanalisar Sistema".
 
+---
+
+## ADR-006: Empacotamento Autocontido (PyInstaller) e Distribuição Standalone via GitHub Releases
+- **Status:** Aceito
+- **Data:** 2026-10-16
+- **Contexto:**
+  O usuário demandou poder rodar a aplicação no terminal (Windows ou macOS) com um único comando, sem a fricção de clonar repositório, baixar zip ou precisar ter interpretador Python previamente instalado na máquina.
+- **Decisão:**
+  1. **Empacotamento Standalone:** Utilizar PyInstaller para gerar executáveis binários de arquivo único (`--onefile`): `limpeza-macos` (macOS) e `limpeza-windows.exe` (Windows).
+  2. **Resolução de Recursos Híbrida (`get_resource_path`):** Implementar módulo em `src/infrastructure/resources.py` que detecta a presença de `sys._MEIPASS` (runtime temporário do PyInstaller) para carregar os catálogos JSON offline (`windows_tweaks.json`, `macos_tweaks.json`, `safe_cleanup_rules.json`), com fallback transparente para o sistema de arquivos local em tempo de desenvolvimento.
+  3. **Scripts de Bootstrap Oneliner:**
+     - macOS: `install-macos.sh` (`curl -fsSL ... | bash`) baixa o binário compilado mais recente do GitHub Releases para `/tmp` e o executa repassando os argumentos de CLI.
+     - Windows: `install-windows.ps1` (`irm ... | iex`) baixa `limpeza-windows.exe` para `$env:TEMP` e o executa diretamente.
+  4. **Automação de Build na Esteira CI/CD:** Adicionar workflow do GitHub Actions (`.github/workflows/release.yml`) que compila os binários em runners nativos `macos-latest` e `windows-latest` e publica a Release oficial com os artefatos e seus checksums SHA-256.
+- **Consequências:**
+  - Redução drástica da barreira de entrada para usuários finais não-técnicos.
+  - Preservação estrita da política Zero-Network (o binário opera 100% offline em `127.0.0.1`).
+  - O código continua totalmente executável em modo interpretado padrão (`python3 main.py`) sem quebrar a experiência de desenvolvimento local.
+
+
