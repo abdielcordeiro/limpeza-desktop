@@ -372,6 +372,82 @@ def generate_html_report(
             color: var(--text-main);
             font-weight: 500;
         }}
+
+        .header-actions {{
+            display: flex;
+            gap: 0.65rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }}
+
+        .btn.header-btn {{
+            font-size: 0.8rem;
+            padding: 0.45rem 0.85rem;
+            text-decoration: none;
+        }}
+
+        .btn-expand-sub {{
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent-primary);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.74rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s ease;
+            margin-top: 0.35rem;
+        }}
+
+        .btn-expand-sub:hover {{
+            background: rgba(56, 189, 248, 0.22);
+            border-color: var(--accent-primary);
+        }}
+
+        .subfolder-container {{
+            background: rgba(11, 15, 25, 0.85);
+            border-left: 3px solid var(--accent-primary);
+            border-radius: 0 8px 8px 0;
+            padding: 0.75rem 1rem;
+            margin: 0.5rem 0;
+        }}
+
+        .subfolder-item {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.35rem 0;
+            border-bottom: 1px dashed rgba(51, 65, 85, 0.5);
+            font-size: 0.82rem;
+        }}
+
+        .subfolder-item:last-child {{
+            border-bottom: none;
+        }}
+
+        .subfolder-meta {{
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }}
+
+        .subfolder-bar {{
+            width: 75px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 999px;
+            overflow: hidden;
+            display: inline-block;
+        }}
+
+        .subfolder-fill {{
+            height: 100%;
+            background: var(--accent-primary);
+            border-radius: 999px;
+        }}
     </style>
 </head>
 <body>
@@ -383,6 +459,10 @@ def generate_html_report(
                 <span class="badge-pill" id="hdr-mode">Modo</span>
             </h1>
             <p id="hdr-sub">Política Estrita Zero-Network • 100% Executado Localmente</p>
+        </div>
+        <div class="header-actions">
+            <a href="/" class="btn secondary header-btn" title="Voltar ao Formulário Inicial de Escolha">⚙️ Nova Configuração / Início</a>
+            <button class="btn header-btn" id="btn-reanalyze" onclick="triggerReanalyze()" title="Reanalisar Discos e Ocupantes">🔄 Reanalisar Sistema</button>
         </div>
         <div class="header-stats">
             <div class="stat-box">
@@ -587,7 +667,7 @@ def generate_html_report(
     </main>
 
     <script>
-        const REPORT_DATA = {data_json};
+        let REPORT_DATA = {data_json};
 
         function switchTab(tabId, btnEl) {{
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -721,9 +801,36 @@ def generate_html_report(
                         body: JSON.stringify({{paths: selected, mode: 'real'}})
                     }});
                     const data = await res.json();
-                    showToast(data.message || `Limpeza concluída: ${{data.bytes_freed_formatted || ''}} liberados!`);
+                    if (data.status === 'ok') {{
+                        // Remover itens apagados de REPORT_DATA.clean_suggestions
+                        const cleanedSet = new Set(data.cleaned_paths || []);
+                        REPORT_DATA.clean_suggestions = (REPORT_DATA.clean_suggestions || []).filter(c => !cleanedSet.has(c.path));
+
+                        // Limpar seleções salvas no localStorage
+                        const saved = JSON.parse(localStorage.getItem('limpeza_checked_orphans') || '{{}}');
+                        (data.cleaned_paths || []).forEach(p => delete saved[p]);
+                        localStorage.setItem('limpeza_checked_orphans', JSON.stringify(saved));
+
+                        // Atualizar métricas do cabeçalho
+                        if (data.total_freed_formatted) {{
+                            document.getElementById('stat-freed').textContent = data.total_freed_formatted;
+                        }}
+                        if (data.potential_extra_formatted) {{
+                            document.getElementById('stat-potential').textContent = data.potential_extra_formatted;
+                        }}
+
+                        // Redesenhar tabela de órfãos imediatamente (os itens somem da UI)
+                        renderOrphans();
+
+                        showToast(`Sucesso! ${{data.bytes_freed_formatted || '0 B'}} liberados e itens removidos da lista.`);
+                    }} else {{
+                        showToast(data.message || 'Erro ao processar limpeza selecionada.');
+                    }}
                     return;
-                }} catch (e) {{}}
+                }} catch (e) {{
+                    showToast('Erro de comunicação com o servidor local: ' + e.message);
+                    return;
+                }}
             }}
             showToast(`Selecionados ${{selected.length}} caminhos. Execute pelo painel ativo em 127.0.0.1 para remoção direta.`);
         }}
@@ -732,18 +839,101 @@ def generate_html_report(
             const q = (document.getElementById('top-search').value || '').toLowerCase();
             const sf = document.getElementById('top-safety-filter').value;
             const list = (REPORT_DATA.top_occupants || []).filter(o => {{
-                const matchText = o.name.toLowerCase().includes(q) || o.path.toLowerCase().includes(q);
+                const matchText = (o.name || '').toLowerCase().includes(q) || (o.path || '').toLowerCase().includes(q);
                 const matchSafety = sf === 'ALL' || (o.safety_action && o.safety_action.includes(sf));
                 return matchText && matchSafety;
             }});
-            document.getElementById('top100-tbody').innerHTML = list.length ? list.map((o, i) => `<tr>
-                <td class="nowrap">${{i + 1}}</td>
-                <td><strong>${{o.name}}</strong></td>
-                <td class="nowrap">${{o.item_type || o.type}}</td>
-                <td class="nowrap"><strong>${{o.size_formatted}}</strong></td>
-                <td class="nowrap"><span class="badge ${{o.safety_badge}}">${{o.safety_action}}</span></td>
-                <td><div class="path-cell">${{o.path}}</div><small style="color:var(--text-muted)">${{o.safety_recommendation}}</small></td>
-            </tr>`).join('') : '<tr><td colspan="6">Nenhum item corresponde aos filtros selecionados.</td></tr>';
+
+            document.getElementById('top100-tbody').innerHTML = list.length ? list.map((o, i) => {{
+                const hasSubs = Array.isArray(o.sub_occupants) && o.sub_occupants.length > 0;
+                const subsHtml = hasSubs ? `
+                    <div style="margin-top:0.4rem;">
+                        <button type="button" class="btn-expand-sub" onclick="toggleSubfolders(${{i}})">
+                            <span id="sub-toggle-icon-${{i}}">▶</span> Maiores Subpastas (${{o.sub_occupants.length}})
+                        </button>
+                        <div id="subfolders-${{i}}" class="subfolder-container" style="display:none;">
+                            ${{o.sub_occupants.map(sub => {{
+                                const parentBytes = o.size || 1;
+                                const pct = Math.min(100, Math.max(4, Math.round((sub.size / parentBytes) * 100)));
+                                return `<div class="subfolder-item">
+                                    <span class="subfolder-name" title="${{escapeHtml(sub.path)}}">📁 ${{escapeHtml(sub.name)}}</span>
+                                    <span class="subfolder-size">${{sub.size_formatted}}</span>
+                                    <div class="subfolder-bar"><div class="subfolder-fill" style="width:${{pct}}%"></div></div>
+                                </div>`;
+                            }}).join('')}}
+                        </div>
+                    </div>` : '';
+
+                return `<tr>
+                    <td class="nowrap">${{i + 1}}</td>
+                    <td><strong>${{escapeHtml(o.name)}}</strong></td>
+                    <td class="nowrap">${{o.item_type || o.type}}</td>
+                    <td class="nowrap"><strong>${{o.size_formatted}}</strong></td>
+                    <td class="nowrap"><span class="badge ${{o.safety_badge}}">${{o.safety_action}}</span></td>
+                    <td>
+                        <div class="path-cell">${{escapeHtml(o.path)}}</div>
+                        <small style="color:var(--text-muted)">${{escapeHtml(o.safety_recommendation || '')}}</small>
+                        ${{subsHtml}}
+                    </td>
+                </tr>`;
+            }}).join('') : '<tr><td colspan="6">Nenhum item corresponde aos filtros selecionados.</td></tr>';
+        }}
+
+        function toggleSubfolders(idx) {{
+            const el = document.getElementById(`subfolders-${{idx}}`);
+            const icon = document.getElementById(`sub-toggle-icon-${{idx}}`);
+            if (!el) return;
+            if (el.style.display === 'none' || !el.style.display) {{
+                el.style.display = 'block';
+                if (icon) icon.textContent = '▼';
+            }} else {{
+                el.style.display = 'none';
+                if (icon) icon.textContent = '▶';
+            }}
+        }}
+
+        async function triggerReanalyze() {{
+            const btn = document.getElementById('btn-reanalyze');
+            if (!window.location.protocol.startsWith('http')) {{
+                showToast('A reanálise em tempo real está disponível quando visualizado pelo servidor local (127.0.0.1).');
+                return;
+            }}
+            try {{
+                if (btn) {{
+                    btn.disabled = true;
+                    btn.textContent = '⏳ Reanalisando...';
+                }}
+                showToast('Reanalisando discos, partições e ocupantes do sistema...');
+                const res = await fetch('/api/reanalyze', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}}
+                }});
+                const data = await res.json();
+                if (data.status === 'ok' && data.report) {{
+                    REPORT_DATA = data.report;
+                    initDashboard();
+                    showToast('✅ Sistema reanalisado com sucesso! Métricas e tabelas atualizadas.');
+                }} else {{
+                    showToast('Aviso: ' + (data.message || 'Não foi possível reanalisar.'));
+                }}
+            }} catch (e) {{
+                showToast('Erro ao reanalisar: ' + e.message);
+            }} finally {{
+                if (btn) {{
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Reanalisar Sistema';
+                }}
+            }}
+        }}
+
+        function escapeHtml(text) {{
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }}
 
         function renderTweaks() {{

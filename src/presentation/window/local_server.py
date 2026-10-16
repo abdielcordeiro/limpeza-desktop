@@ -582,10 +582,12 @@ class LocalControlPanelServer:
                         self.orchestrator.last_report,
                         output_filename=self.output_report_path,
                     )
+                last_rep = self.orchestrator.last_report
                 return (
                     200,
                     "application/json; charset=utf-8",
                     {
+                        "status": "ok",
                         "success": True,
                         "bytes_freed": entry.bytes_freed,
                         "bytes_freed_formatted": entry.bytes_freed_formatted,
@@ -593,6 +595,23 @@ class LocalControlPanelServer:
                         "cleaned_paths": entry.target_paths,
                         "errors_skipped": entry.errors_skipped,
                         "message": entry.details,
+                        "total_freed_formatted": last_rep.total_bytes_freed_formatted if last_rep else "0.00 B",
+                        "potential_extra_formatted": last_rep.potential_extra_bytes_formatted if last_rep else "0.00 B",
+                        "remaining_orphans_count": len(last_rep.clean_suggestions) if last_rep else 0,
+                    },
+                )
+
+            if parsed.path == "/api/reanalyze":
+                report = self.orchestrator.reanalyze(progress_cb=self._update_progress)
+                generate_html_report(report, output_filename=self.output_report_path)
+                return (
+                    200,
+                    "application/json; charset=utf-8",
+                    {
+                        "status": "ok",
+                        "success": True,
+                        "message": "Reanálise concluída com sucesso! Métricas e lista de itens atualizadas.",
+                        "report": report.to_dict(),
                     },
                 )
 

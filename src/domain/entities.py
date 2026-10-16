@@ -139,6 +139,7 @@ class OccupantItem:
     safety_action: str
     safety_badge: str
     safety_recommendation: str
+    sub_occupants: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

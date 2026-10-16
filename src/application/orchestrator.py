@@ -69,6 +69,7 @@ class OrchestratorService:
         self.snapshot_repo = snapshot_repo or SnapshotRepository()
         self.tweak_adapter = tweak_adapter or SystemTweakAdapter(system_probe=host_probe)
         self.last_report: Optional[SystemExecutionReport] = None
+        self.last_plan: Optional[ExecutionPlanDTO] = None
 
     def _get_os_ports(
         self, os_platform: OSPlatform
@@ -182,6 +183,7 @@ class OrchestratorService:
         progress_cb: Optional[ProgressCallback] = None,
     ) -> SystemExecutionReport:
         """Executa o ciclo completo de limpeza autônoma, varredura profunda, tweaks e diagnóstico."""
+        self.last_plan = plan
         logs: List[str] = []
 
         def emit(pct: int, step: str, msg: str) -> None:
@@ -406,11 +408,41 @@ class OrchestratorService:
             self.last_report.autonomous_cleanups.append(entry)
             self.last_report.total_bytes_freed += entry.bytes_freed
             self.last_report.total_files_removed += entry.files_removed
-            cleaned_set = {os.path.abspath(p) for p in entry.target_paths}
+            cleaned_set = {os.path.abspath(p).rstrip("\\/") for p in entry.target_paths}
+            remaining_suggestions = []
             for item in self.last_report.clean_suggestions:
-                if os.path.abspath(item.path) in cleaned_set:
+                item_norm = os.path.abspath(item.path).rstrip("\\/")
+                if item_norm in cleaned_set:
                     item.was_auto_cleaned = mode == ExecutionMode.REAL
+                    if mode == ExecutionMode.REAL:
+                        self.last_report.potential_extra_bytes = max(
+                            0, self.last_report.potential_extra_bytes - item.size
+                        )
+                        continue  # Remove da lista de pendências da sessão atual!
+                remaining_suggestions.append(item)
+            if mode == ExecutionMode.REAL:
+                self.last_report.clean_suggestions = remaining_suggestions
         return entry
+
+    def reanalyze(
+        self,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> SystemExecutionReport:
+        """Reanalisa o sistema mantendo o escopo e alvos anteriores, atualizando espaço e pendências."""
+        base_plan = self.last_plan or self.build_default_plan()
+        reanalyze_plan = ExecutionPlanDTO(
+            os_platform=base_plan.os_platform,
+            mode=ExecutionMode.DRY_RUN,
+            scan_scope=base_plan.scan_scope,
+            specific_drive=base_plan.specific_drive,
+            selected_cleanup_rule_ids=[],
+            selected_tweak_ids=[],
+            run_disk_scan=True,
+            run_cloud_diagnostic=True,
+            check_updates=False,
+            auto_clean_orphans=False,
+        )
+        return self.execute_plan(reanalyze_plan, progress_cb=progress_cb)
 
     def revert_snapshot(
         self,

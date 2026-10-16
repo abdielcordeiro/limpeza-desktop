@@ -667,6 +667,39 @@ class DiskScannerAdapter(IDiskScannerPort):
         raw_occupants: List[OccupantItem] = []
         for f_path, f_size in dedup_folders:
             act_label, badge_cls, rec = classify_item_safety(f_path, "Pasta")
+            
+            # Mapeia dinamicamente as subpastas mais pesadas (drill-down limpo)
+            p_clean = os.path.abspath(f_path).rstrip(os.sep)
+            direct_children: List[Tuple[str, int]] = []
+            for p_cand, p_sz in folder_sizes.items():
+                cand_clean = os.path.abspath(p_cand).rstrip(os.sep)
+                if os.path.dirname(cand_clean) == p_clean and cand_clean != p_clean:
+                    direct_children.append((p_cand, p_sz))
+
+            if not direct_children and os.path.isdir(f_path):
+                try:
+                    with os.scandir(f_path) as it:
+                        for entry in it:
+                            if entry.is_dir(follow_symlinks=False):
+                                sz = folder_sizes.get(entry.path, 0)
+                                if sz > 0:
+                                    direct_children.append((entry.path, sz))
+                except (PermissionError, OSError):
+                    pass
+
+            direct_children.sort(key=lambda x: x[1], reverse=True)
+            sub_occupants: List[Dict[str, Any]] = []
+            for sub_p, sub_sz in direct_children[:5]:
+                if sub_sz > 512 * 1024:  # Maior que 512 KB
+                    pct = round((sub_sz / f_size * 100), 1) if f_size > 0 else 0.0
+                    sub_occupants.append({
+                        "name": os.path.basename(sub_p.rstrip("\\/")) or sub_p,
+                        "path": sub_p,
+                        "size": sub_sz,
+                        "size_formatted": format_bytes(sub_sz),
+                        "percent_of_parent": pct,
+                    })
+
             raw_occupants.append(
                 OccupantItem(
                     name=os.path.basename(f_path.rstrip("\\/")) or f_path,
@@ -678,6 +711,7 @@ class DiskScannerAdapter(IDiskScannerPort):
                     safety_action=act_label,
                     safety_badge=badge_cls,
                     safety_recommendation=rec,
+                    sub_occupants=sub_occupants,
                 )
             )
 
