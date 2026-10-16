@@ -17,6 +17,7 @@ except ImportError:
 from src.domain.entities import TweakDefinition, TweakExecutionRecord
 from src.domain.ports import ISystemTweakPort, ISystemProbePort
 from src.domain.value_objects import ExecutionMode, OSPlatform
+from src.infrastructure.resources import get_catalog_path
 
 
 class SystemTweakAdapter(ISystemTweakPort):
@@ -29,12 +30,11 @@ class SystemTweakAdapter(ISystemTweakPort):
         macos_catalog_path: Optional[str] = None,
     ) -> None:
         self.system_probe = system_probe
-        base_dir = os.path.join(os.path.dirname(__file__), "catalogs")
         self.windows_catalog_path = os.path.abspath(
-            windows_catalog_path or os.path.join(base_dir, "windows_tweaks.json")
+            windows_catalog_path or get_catalog_path("windows_tweaks.json")
         )
         self.macos_catalog_path = os.path.abspath(
-            macos_catalog_path or os.path.join(base_dir, "macos_tweaks.json")
+            macos_catalog_path or get_catalog_path("macos_tweaks.json")
         )
         self._tweaks_cache: Dict[str, List[TweakDefinition]] = {}
 

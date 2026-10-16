@@ -7,6 +7,7 @@ from typing import List, Tuple, Optional
 from src.domain.entities import AutonomousCleanupRule, AutonomousCleanupEntry
 from src.domain.ports import IFileSystemCleanerPort
 from src.domain.value_objects import ExecutionMode, OSPlatform, format_bytes
+from src.infrastructure.resources import get_catalog_path
 
 
 def expand_os_path(raw_path: str) -> str:
@@ -157,9 +158,7 @@ class AutonomousCleanerAdapter(IFileSystemCleanerPort):
 
     def __init__(self, catalog_path: Optional[str] = None) -> None:
         if catalog_path is None:
-            catalog_path = os.path.join(
-                os.path.dirname(__file__), "..", "catalogs", "safe_cleanup_rules.json"
-            )
+            catalog_path = get_catalog_path("safe_cleanup_rules.json")
         self.catalog_path = os.path.abspath(catalog_path)
 
     def get_cleanup_rules(self, os_platform: OSPlatform) -> List[AutonomousCleanupRule]:
