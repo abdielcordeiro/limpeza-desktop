@@ -12,9 +12,27 @@ Sistema completo e autônomo de **Limpeza de Espaço em Disco**, **Caça a Pasta
 
 ---
 
-## 🧭 Guia de Execução: Qual comando utilizar?
+## ⚡ Execução Instantânea via Comando Único (Sem Download Manual e Sem Instalar Python)
 
-A aplicação possui 4 modos principais de operação para atender a diferentes necessidades:
+Você pode executar o produto em qualquer máquina **com apenas 1 comando no terminal**, sem clonar o repositório e sem precisar ter o Python previamente instalado:
+
+### 🍎 No macOS (Terminal / zsh):
+```bash
+curl -fsSL https://raw.githubusercontent.com/abdielcordeiro/limpeza-desktop/main/install-macos.sh | bash
+```
+
+### 🪟 No Windows (PowerShell como Administrador):
+```powershell
+irm https://raw.githubusercontent.com/abdielcordeiro/limpeza-desktop/main/install-windows.ps1 | iex
+```
+
+*(O comando baixa o executável standalone mais recente oficial, valida integridade e abre automaticamente a janela interativa no seu navegador).*
+
+---
+
+## 🧭 Guia de Execução Local (Modo Desenvolvedor com Python)
+
+Caso prefira rodar a partir do código-fonte com o interpretador Python:
 
 | Modo de Execução | Comando | Abre Janela? | Apaga Arquivos Reais? | Aplica Tweaks Reais? | Para que serve? |
 | :--- | :--- | :---: | :---: | :---: | :--- |
@@ -121,7 +139,7 @@ python3 main.py --dry-run --headless --os windows --preset advanced
 
 ## 🧪 Testes Automatizados e Qualidade
 
-O projeto conta com uma suíte de 13 testes automatizados cobrindo Domínio, Catálogos, Algoritmo de 5 Camadas, Limpeza Segura, Reversibilidade (`Undo`), Drill-down de Subpastas, Reanálise On-Demand, Proteção contra Path Traversal e Auditoria Estática Zero-Network:
+O projeto conta com uma suíte de 17 testes automatizados cobrindo Domínio, Catálogos, Algoritmo de 5 Camadas, Limpeza Segura, Reversibilidade (`Undo`), Drill-down de Subpastas, Reanálise On-Demand, Empacotamento PyInstaller Standalone, Scripts de Bootstrap Oneliner, Proteção contra Path Traversal e Auditoria Estática Zero-Network:
 
 ```bash
 python3 -m unittest discover -s tests -v

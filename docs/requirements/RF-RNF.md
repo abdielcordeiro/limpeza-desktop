@@ -147,6 +147,23 @@ Este documento define o escopo funcional, critérios de aceite e restrições n�
 
 ---
 
+### RF-11: Distribuição de Executáveis Standalone Autocontidos e Execução Oneliner
+- **Descrição:** Permitir que o usuário final execute a aplicação no terminal (Windows ou macOS) com um **único comando oneliner**, sem necessidade de instalar Python, clonar repositório Git ou instalar dependências.
+- **Critérios de Aceite:**
+  1. **Empacotamento Standalone Autocontido:** Compilar a aplicação completa com todos os módulos, servidor local e catálogos declarativos embutidos em arquivos executáveis únicos (`limpeza-macos` para macOS e `limpeza-windows.exe` para Windows).
+  2. **Zero Dependência do Ambiente Hospedeiro:** O executável deve conter seu próprio runtime isolado, funcionando mesmo em máquinas virgens que nunca tiveram interpretador Python instalado.
+  3. **Comando Oneliner macOS:** Fornecer script de bootstrap (`install-macos.sh`) executável via:
+     `curl -fsSL https://raw.githubusercontent.com/abdielcordeiro/limpeza-desktop/main/install-macos.sh | bash`
+     O script baixa a versão compilada oficial mais recente do GitHub Releases, ajusta permissões e a executa diretamente no terminal.
+  4. **Comando Oneliner Windows:** Fornecer script PowerShell de bootstrap (`install-windows.ps1`) executável via:
+     `irm https://raw.githubusercontent.com/abdielcordeiro/limpeza-desktop/main/install-windows.ps1 | iex`
+     O script baixa a versão oficial `limpeza-windows.exe` e a dispara diretamente.
+  5. **Compatibilidade com Flags CLI:** Os scripts oneliner devem aceitar e repassar argumentos (ex: `--dry-run`, `--headless`, `--preset`).
+  6. **Resolução de Recursos Embarcados:** O código deve resolver de forma transparente os arquivos de catálogo JSON (`windows_tweaks.json`, `macos_tweaks.json`, `safe_cleanup_rules.json`) tanto em tempo de desenvolvimento quanto empacotado no diretório temporário do executável (`_MEIPASS`).
+  7. **Automação CI/CD:** O workflow de release no GitHub Actions deve compilar e disponibilizar os binários e seus hashes SHA-256 a cada nova versão taggeada.
+
+---
+
 ## 2. Requisitos Não-Funcionais (RNF)
 
 ### RNF-01: Política Estrita Zero-Network & Zero-Telemetry (Privacidade Absoluta)

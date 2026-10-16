@@ -140,6 +140,46 @@ flowchart LR
 
 ---
 
+### 2.4. Nível 4 — Diagrama de Implantação e Distribuição Standalone (Deployment Diagram)
+
+```mermaid
+flowchart TD
+    subgraph GitHubPlatform["Ecossistema GitHub (Hospedagem & CI/CD)"]
+        Repo["Repositório Git<br/>(abdielcordeiro/limpeza-desktop)"]
+        GHA["GitHub Actions CI/CD Pipeline<br/>(release.yml)"]
+        ReleaseAsset["GitHub Releases Oficial<br/>• limpeza-macos<br/>• limpeza-windows.exe<br/>• checksums.sha256"]
+        BootstrapScripts["Scripts de Inicialização Oneliner<br/>• install-macos.sh<br/>• install-windows.ps1"]
+    end
+
+    subgraph UserMac["Máquina do Usuário (macOS)"]
+        MacTerminal["Terminal / zsh<br/>curl -fsSL install-macos.sh | bash"]
+        MacRunner["Processo Standalone:<br/>/tmp/limpeza-macos"]
+        MacBrowser["Navegador Safari / Chrome<br/>http://127.0.0.1:porta"]
+    end
+
+    subgraph UserWin["Máquina do Usuário (Windows)"]
+        WinTerminal["PowerShell Admin<br/>irm install-windows.ps1 | iex"]
+        WinRunner["Processo Standalone:<br/>%TEMP%\\limpeza-windows.exe"]
+        WinBrowser["Navegador Edge / Chrome<br/>http://127.0.0.1:porta"]
+    end
+
+    Repo -->|"Git Tag v* / Workflow Dispatch"| GHA
+    GHA -->|"Compilação PyInstaller Matrix"| ReleaseAsset
+    Repo -->|"Raw Content"| BootstrapScripts
+
+    MacTerminal -->|"1. Baixa script de bootstrap"| BootstrapScripts
+    MacTerminal -->|"2. Baixa binário mais recente"| ReleaseAsset
+    MacTerminal -->|"3. Executa standalone"| MacRunner
+    MacRunner -->|"4. Abre painel local"| MacBrowser
+
+    WinTerminal -->|"1. Baixa script de bootstrap"| BootstrapScripts
+    WinTerminal -->|"2. Baixa executável mais recente"| ReleaseAsset
+    WinTerminal -->|"3. Executa standalone"| WinRunner
+    WinRunner -->|"4. Abre painel local"| WinBrowser
+```
+
+---
+
 ## 3. Organização de Diretórios Proposta (Clean Architecture)
 
 ```text
