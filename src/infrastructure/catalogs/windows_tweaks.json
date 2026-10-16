@@ -1,0 +1,1087 @@
+{
+  "catalog_version": "2.0.0",
+  "os_platform": "windows",
+  "zero_network_verified": true,
+  "tweaks": [
+    {
+      "id": "WPFTweaksRestorePoint",
+      "name": "Criar Ponto de Restauração e Liberar Frequência",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "minimal",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Ajusta SystemRestorePointCreationFrequency = 0 para permitir múltiplos pontos de restauração no mesmo dia e cria um Ponto de Restauração imediato no Windows.",
+      "benefit": "Garante rollback completo do Windows antes de qualquer alteração.",
+      "undo_hint": "Restaura SystemRestorePointCreationFrequency para 1440 minutos (24h).",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore",
+          "name": "SystemRestorePointCreationFrequency",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1440
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "powershell.exe -NoProfile -NonInteractive -Command \"Enable-ComputerRestore -Drive '$env:SystemDrive'; Checkpoint-Computer -Description 'LimpezaDesktop_PreOpt' -RestorePointType 'MODIFY_SETTINGS'\""
+      ],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksTele",
+      "name": "Desativar Telemetria da Microsoft (Coleta, WER, Siuf & Tasks)",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Bloqueia integralmente a coleta de diagnóstico, ID de anúncio, experiências personalizadas, feedbacks Siuf, Windows Error Reporting, 13 Tarefas Agendadas de telemetria e opt-out do PowerShell.",
+      "benefit": "Reduz tráfego em background, uso de disco/CPU e protege a privacidade.",
+      "undo_hint": "Reativa os valores originais de fábrica nas chaves DataCollection e reagenda as tarefas.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\DataCollection",
+          "name": "AllowTelemetry",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+          "name": "AllowTelemetry",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+          "name": "DoNotShowFeedbackNotifications",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "ContentDeliveryAllowed",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "OemPreInstalledAppsEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "PreInstalledAppsEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "PreInstalledAppsEverEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SilentInstalledAppsEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SubscribedContent-338387Enabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SubscribedContent-338388Enabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SubscribedContent-338389Enabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SubscribedContent-353698Enabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SystemPaneSuggestionsEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "Software\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo",
+          "name": "Enabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Privacy",
+          "name": "TailoredExperiencesWithDiagnosticDataEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\AdvertisingInfo",
+          "name": "DisabledByGroupPolicy",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+          "name": "Disabled",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        },
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Siuf\\Rules",
+          "name": "NumberOfSIUFInPeriod",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "UploadUserActivities",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "PublishUserActivities",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "EnableActivityFeed",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "Environment",
+          "name": "POWERSHELL_TELEMETRY_OPTOUT",
+          "type": "REG_SZ",
+          "value": "1",
+          "original_value": "0"
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [
+        "\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser",
+        "\\Microsoft\\Windows\\Application Experience\\ProgramDataUpdater",
+        "\\Microsoft\\Windows\\Autochk\\Proxy",
+        "\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator",
+        "\\Microsoft\\Windows\\Customer Experience Improvement Program\\UsbCeip",
+        "\\Microsoft\\Windows\\DiskDiagnostic\\Microsoft-Windows-DiskDiagnosticDataCollector",
+        "\\Microsoft\\Windows\\Feedback\\Siuf\\DmClient",
+        "\\Microsoft\\Windows\\Feedback\\Siuf\\DmClientOnScenarioDownload",
+        "\\Microsoft\\Windows\\Windows Error Reporting\\QueueReporting",
+        "\\Microsoft\\Windows\\Application Experience\\MareBackup",
+        "\\Microsoft\\Windows\\Application Experience\\StartupAppTask",
+        "\\Microsoft\\Windows\\Application Experience\\PcaPatchDbTask",
+        "\\Microsoft\\Windows\\Maps\\MapsUpdateTask"
+      ],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksServices",
+      "name": "Otimizar Serviços do Windows e Agrupamento svchost.exe",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Calcula SvcHostSplitThresholdInKB conforme a RAM física total, desativa DiagTrack e dmwappushservice e configura ~45 serviços secundários para inicialização Manual sob demanda.",
+      "benefit": "Diminui drasticamente o número de processos em background e libera memória RAM.",
+      "undo_hint": "Restaura SvcHostSplitThresholdInKB (380000) e devolve cada serviço ao seu OriginalType.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SYSTEM\\CurrentControlSet\\Control",
+          "name": "SvcHostSplitThresholdInKB",
+          "type": "REG_DWORD",
+          "value": "DYNAMIC_RAM_KB",
+          "original_value": 380000
+        }
+      ],
+      "service_changes": [
+        {"name": "DiagTrack", "startup_type": "Disabled", "original_type": "Automatic"},
+        {"name": "dmwappushservice", "startup_type": "Disabled", "original_type": "Manual"},
+        {"name": "RemoteRegistry", "startup_type": "Disabled", "original_type": "Disabled"},
+        {"name": "tzautoupdate", "startup_type": "Disabled", "original_type": "Manual"},
+        {"name": "shpamsvc", "startup_type": "Disabled", "original_type": "Disabled"},
+        {"name": "UevAgentService", "startup_type": "Disabled", "original_type": "Disabled"},
+        {"name": "ALG", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "AppMgmt", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "AppReadiness", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "AppVClient", "startup_type": "Disabled", "original_type": "Disabled"},
+        {"name": "AxInstSV", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "BDESVC", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "BluetoothUserService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "bthserv", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "camsvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "CertPropSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "CDPSvc", "startup_type": "Manual", "original_type": "Automatic"},
+        {"name": "CscService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "defragsvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "DeviceAssociationService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "DeviceInstall", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "DevQueryBroker", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "diagsvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "DisplayEnhancementService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "EFS", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "exeService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "Fax", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "fdPHost", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "FDResPub", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "fhsvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "FrameServer", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "GraphicsPerfSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "hvhost", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "icssvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "iphlpsvc", "startup_type": "Manual", "original_type": "Automatic"},
+        {"name": "IpxlatCfgSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "lfsvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "lltdsvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "lmhosts", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "MapsBroker", "startup_type": "Manual", "original_type": "AutomaticDelayedStart"},
+        {"name": "NaturalAuthentication", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "NcaSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "NcbService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "NcdAutoSetup", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "Netlogon", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "PcaSvc", "startup_type": "Manual", "original_type": "Automatic"},
+        {"name": "PeerDistSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "PhoneSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "PlugPlay", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "PolicyAgent", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "PrintNotify", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "RemoteAccess", "startup_type": "Disabled", "original_type": "Disabled"},
+        {"name": "RetailDemo", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SCardSvr", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "ScDeviceEnum", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SensorDataService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SensorService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SensrSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SessionEnv", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SharedAccess", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SmsRouter", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SNMPTRAP", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SSDPSRV", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "ssh-agent", "startup_type": "Disabled", "original_type": "Disabled"},
+        {"name": "StiSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "SysMain", "startup_type": "Manual", "original_type": "Automatic"},
+        {"name": "TabletInputService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "TapiSrv", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "TermService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "TokenBroker", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "TroubleshootingSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "UmRdpService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "upnphost", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "WalletService", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "WerSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "WiaRpc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "wisvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "WMPNetworkSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "WpcMonSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "WPDBusEnum", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "WSearch", "startup_type": "Manual", "original_type": "AutomaticDelayedStart"},
+        {"name": "XblAuthManager", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "XblGameSave", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "XboxGipSvc", "startup_type": "Manual", "original_type": "Manual"},
+        {"name": "XboxNetApiSvc", "startup_type": "Manual", "original_type": "Manual"}
+      ],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksDVR",
+      "name": "Desativar Xbox GameDVR e Captura em Background",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Desativa a gravação contínua de tela do Xbox GameDVR (GameConfigStore e AllowGameDVR = 0).",
+      "benefit": "Aumenta FPS em jogos e reduz latência de GPU/CPU.",
+      "undo_hint": "Reativa GameDVR_Enabled = 1 e AllowGameDVR = 1.",
+      "registry_changes": [
+        {
+          "hive": "HKCU",
+          "path": "System\\GameConfigStore",
+          "name": "GameDVR_FSEBehavior",
+          "type": "REG_DWORD",
+          "value": 2,
+          "original_value": 0
+        },
+        {
+          "hive": "HKCU",
+          "path": "System\\GameConfigStore",
+          "name": "GameDVR_Enabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "System\\GameConfigStore",
+          "name": "GameDVR_DXGIHonorFSEWindowsCompatible",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        },
+        {
+          "hive": "HKCU",
+          "path": "System\\GameConfigStore",
+          "name": "GameDVR_HonorUserFSEBehaviorMode",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR",
+          "name": "AllowGameDVR",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksActivity",
+      "name": "Desativar Histórico de Atividades e Timeline",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Desativa o armazenamento e sincronização do Histórico de Atividades de apps e arquivos abertos.",
+      "benefit": "Evita indexação contínua de atividades de usuário no disco.",
+      "undo_hint": "Reativa EnableActivityFeed, PublishUserActivities e UploadUserActivities.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "EnableActivityFeed",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "PublishUserActivities",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "UploadUserActivities",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksLoc",
+      "name": "Desativar Rastreamento de Localização",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Bloqueia o rastreamento de localização geográfica pelo Windows (ConsentStore\\location = Deny e lfsvc).",
+      "benefit": "Maior privacidade em desktops e notebooks.",
+      "undo_hint": "Restaura ConsentStore\\location para Allow e lfsvc Status = 1.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\location",
+          "name": "Value",
+          "type": "REG_SZ",
+          "value": "Deny",
+          "original_value": "Allow"
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Sensor\\Overrides\\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}",
+          "name": "SensorPermissionState",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SYSTEM\\CurrentControlSet\\Services\\lfsvc\\Service\\Configuration",
+          "name": "Status",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksWifi",
+      "name": "Desativar Wi-Fi Sense e Compartilhamento de Hotspots",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Desativa o envio de relatórios de hotspots Wi-Fi e conexão automática a redes Wi-Fi Sense.",
+      "benefit": "Aumenta a segurança de rede e evita conexões não solicitadas.",
+      "undo_hint": "Restaura AllowWiFiHotSpotReporting e AllowAutoConnectToWiFiSenseHotspots para 1.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "Software\\Microsoft\\PolicyManager\\default\\WiFi\\AllowWiFiHotSpotReporting",
+          "name": "Value",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "Software\\Microsoft\\PolicyManager\\default\\WiFi\\AllowAutoConnectToWiFiSenseHotspots",
+          "name": "Value",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksConsumerFeatures",
+      "name": "Bloquear Instalação Silenciosa de Bloatwares (Consumer Features)",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Define DisableWindowsConsumerFeatures = 1 para impedir que o Windows baixe jogos e aplicativos patrocinados automaticamente.",
+      "benefit": "Evita ocupação inesperada de disco e consumo de banda.",
+      "undo_hint": "Define DisableWindowsConsumerFeatures = 0.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+          "name": "DisableWindowsConsumerFeatures",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksEndTask",
+      "name": "Habilitar 'Finalizar Tarefa' na Barra de Tarefas (Windows 11)",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "minimal",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Ativa a opção 'Finalizar Tarefa' (TaskbarEndTask = 1) ao clicar com o botão direito em qualquer app na Barra de Tarefas do Windows 11.",
+      "benefit": "Permite encerrar programas travados em 1 clique sem abrir o Gerenciador de Tarefas.",
+      "undo_hint": "Define TaskbarEndTask = 0.",
+      "registry_changes": [
+        {
+          "hive": "HKCU",
+          "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced\\TaskbarDeveloperSettings",
+          "name": "TaskbarEndTask",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksHiber",
+      "name": "Desativar Hibernação e Liberar hiberfil.sys",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Desativa a hibernação via powercfg.exe /hibernate off e remove o arquivo C:\\hiberfil.sys.",
+      "benefit": "Libera de 6 GB a 32 GB de espaço imediato no SSD principal.",
+      "undo_hint": "Executa powercfg.exe /hibernate on e restaura HibernateEnabled = 1.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "System\\CurrentControlSet\\Control\\Session Manager\\Power",
+          "name": "HibernateEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FlyoutMenuSettings",
+          "name": "ShowHibernateOption",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "powercfg.exe /hibernate off"
+      ],
+      "undo_commands": [
+        "powercfg.exe /hibernate on"
+      ]
+    },
+    {
+      "id": "WPFTweaksStorage",
+      "name": "Ativar Sensor de Armazenamento (Storage Sense)",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "minimal",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Habilita o Sensor de Armazenamento nativo do Windows para limpeza automática de arquivos temporários.",
+      "benefit": "Mantém o espaço livre sob controle automaticamente.",
+      "undo_hint": "Desativa a chave 01 em StoragePolicy.",
+      "registry_changes": [
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\StorageSense\\Parameters\\StoragePolicy",
+          "name": "01",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksDeliveryOptimization",
+      "name": "Desativar P2P do Windows Update (Delivery Optimization)",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Define DODownloadMode = 0 para impedir que o PC envie pacotes de atualização para outros PCs na rede/internet e limpa o cache local.",
+      "benefit": "Libera banda de upload e espaço em disco usado pelo cache P2P.",
+      "undo_hint": "Restaura DODownloadMode = 1.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\DeliveryOptimization\\Config",
+          "name": "DODownloadMode",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "powershell.exe -NoProfile -NonInteractive -Command \"Delete-DeliveryOptimizationCache -Force -ErrorAction SilentlyContinue\""
+      ],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksDeleteTempFiles",
+      "name": "Limpeza Profunda de %TEMP%, System Temp e Prefetch",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "minimal",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Remove arquivos temporários obsoletos em %TEMP%, %SystemRoot%\\Temp e %SystemRoot%\\Prefetch.",
+      "benefit": "Recupera espaço imediato sem afetar dados do usuário.",
+      "undo_hint": "Operação de limpeza de cache transitório (recriado pelo SO conforme uso).",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "cmd.exe /c \"del /q /f /s %TEMP%\\* >nul 2>&1\""
+      ],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksDiskCleanup",
+      "name": "Limpeza Nativa do Disco e Compactação WinSxS (DISM)",
+      "category": "Tweaks Essenciais",
+      "panel": "essential",
+      "os_platform": "windows",
+      "preset": "standard",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Executa cleanmgr.exe /d C: /VERYLOWDISK e Dism.exe /online /Cleanup-Image /StartComponentCleanup /ResetBase para limpar versões antigas de componentes.",
+      "benefit": "Reduz o tamanho da pasta C:\\Windows\\WinSxS com segurança oficial da Microsoft.",
+      "undo_hint": "Operação de limpeza nativa do Windows Component Store.",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "cleanmgr.exe /d C: /VERYLOWDISK",
+        "Dism.exe /online /Cleanup-Image /StartComponentCleanup /ResetBase"
+      ],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFAddUltPerf",
+      "name": "Ativar Plano de Energia 'Desempenho Máximo' (Ultimate Performance)",
+      "category": "Performance & Tweaks Avançados",
+      "panel": "advanced",
+      "os_platform": "windows",
+      "preset": "advanced",
+      "risk_level": "low",
+      "requires_admin": true,
+      "description": "Habilita e ativa de forma idempotente o plano oculto Ultimate Performance (GUID e9a42b02-d5df-448d-aa00-03f14749eb61) sem duplicar esquemas existentes.",
+      "benefit": "Elimina micro-latências de gerenciamento de energia de CPU e PCIe.",
+      "undo_hint": "Retorna ao plano Equilibrado padrão (381b4222-f694-41f0-9685-ff5bb260df2e).",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "IDEMPOTENT_ULTIMATE_PERFORMANCE"
+      ],
+      "undo_commands": [
+        "powercfg.exe -setactive 381b4222-f694-41f0-9685-ff5bb260df2e"
+      ]
+    },
+    {
+      "id": "WPFTweaksWindowsAI",
+      "name": "Desativar Windows Copilot, Windows Recall e Análise de IA",
+      "category": "Performance & Tweaks Avançados",
+      "panel": "advanced",
+      "os_platform": "windows",
+      "preset": "advanced",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Desativa TurnOffWindowsCopilot, DisableAIDataAnalysis (Recall), oculta o botão do Copilot na barra de tarefas e desativa o recurso Recall e o serviço WSAIFabricSvc.",
+      "benefit": "Impede capturas constantes de tela do Recall e economiza RAM/NPU/CPU.",
+      "undo_hint": "Reativa Copilot e restaura políticas WindowsAI.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsCopilot",
+          "name": "TurnOffWindowsCopilot",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        },
+        {
+          "hive": "HKCU",
+          "path": "Software\\Policies\\Microsoft\\Windows\\WindowsCopilot",
+          "name": "TurnOffWindowsCopilot",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        },
+        {
+          "hive": "HKCU",
+          "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+          "name": "ShowCopilotButton",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableAIDataAnalysis",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        },
+        {
+          "hive": "HKCU",
+          "path": "Software\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableAIDataAnalysis",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        }
+      ],
+      "service_changes": [
+        {"name": "WSAIFabricSvc", "startup_type": "Disabled", "original_type": "Manual"}
+      ],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "Dism.exe /Online /Disable-Feature /FeatureName:Recall /NoRestart"
+      ],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksRightClickMenu",
+      "name": "Ativar Menu de Contexto Clássico (Windows 11)",
+      "category": "Performance & Tweaks Avançados",
+      "panel": "advanced",
+      "os_platform": "windows",
+      "preset": "advanced",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Restaura o menu de clique direito completo e instantâneo do Windows 10 no Windows 11 via CLSID {86ca1aa0-34aa-4e8b-a509-50c905bae2a2}.",
+      "benefit": "Elimina o clique extra em 'Mostrar mais opções' e acelera o Explorer.",
+      "undo_hint": "Remove a chave CLSID {86ca1aa0-34aa-4e8b-a509-50c905bae2a2}.",
+      "registry_changes": [
+        {
+          "hive": "HKCU",
+          "path": "Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32",
+          "name": "",
+          "type": "REG_SZ",
+          "value": "",
+          "original_value": null
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": [
+        "reg.exe delete \"HKCU\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\" /f"
+      ]
+    },
+    {
+      "id": "WPFTweaksEdgeDebloat",
+      "name": "Desativar Bloatware e Execução em Segundo Plano do Microsoft Edge",
+      "category": "Performance & Tweaks Avançados",
+      "panel": "advanced",
+      "os_platform": "windows",
+      "preset": "advanced",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Desativa StartupBoost, execução em background ao fechar, assistente de compras, barra lateral e telemetria comercial do Edge.",
+      "benefit": "Impede que processos msedge.exe fiquem consumindo RAM com o navegador fechado.",
+      "undo_hint": "Restaura as políticas padrão do Microsoft Edge.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "StartupBoostEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "BackgroundModeEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "ShoppingAssistantEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "HubsSidebarEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "PersonalizationReportingEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksBing",
+      "name": "Desativar Busca Web do Bing no Menu Iniciar",
+      "category": "Performance & Tweaks Avançados",
+      "panel": "advanced",
+      "os_platform": "windows",
+      "preset": "advanced",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Define BingSearchEnabled = 0 e DisableSearchBoxSuggestions = 1 para que a pesquisa do Menu Iniciar busque apenas arquivos e apps locais.",
+      "benefit": "Pesquisa no Menu Iniciar instantânea e sem envio de termos digitados para o Bing.",
+      "undo_hint": "Reativa BingSearchEnabled = 1 e DisableSearchBoxSuggestions = 0.",
+      "registry_changes": [
+        {
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search",
+          "name": "BingSearchEnabled",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "Software\\Policies\\Microsoft\\Windows\\Explorer",
+          "name": "DisableSearchBoxSuggestions",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksDisplay",
+      "name": "Ajustar Efeitos Visuais para Melhor Desempenho",
+      "category": "Performance & Tweaks Avançados",
+      "panel": "advanced",
+      "os_platform": "windows",
+      "preset": "advanced",
+      "risk_level": "safe",
+      "requires_admin": false,
+      "description": "Configura VisualFXSetting = 3, desativa animações pesadas da barra de tarefas e minimização mantendo fontes suavizadas (ClearType).",
+      "benefit": "Interface mais responsiva e menor uso de GPU integrada.",
+      "undo_hint": "Restaura VisualFXSetting = 0 e TaskbarAnimations = 1.",
+      "registry_changes": [
+        {
+          "hive": "HKCU",
+          "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects",
+          "name": "VisualFXSetting",
+          "type": "REG_DWORD",
+          "value": 3,
+          "original_value": 0
+        },
+        {
+          "hive": "HKCU",
+          "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+          "name": "TaskbarAnimations",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        },
+        {
+          "hive": "HKCU",
+          "path": "Control Panel\\Desktop\\WindowMetrics",
+          "name": "MinAnimate",
+          "type": "REG_SZ",
+          "value": "0",
+          "original_value": "1"
+        },
+        {
+          "hive": "HKCU",
+          "path": "Software\\Microsoft\\Windows\\DWM",
+          "name": "EnableAeroPeek",
+          "type": "REG_DWORD",
+          "value": 0,
+          "original_value": 1
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFTweaksUTC",
+      "name": "Configurar Relógio de Hardware em UTC (Ideal para Dual-Boot)",
+      "category": "Performance & Tweaks Avançados",
+      "panel": "advanced",
+      "os_platform": "windows",
+      "preset": "advanced",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Define RealTimeIsUniversal = 1 em TimeZoneInformation para evitar dessincronização de horário em sistemas Dual-Boot.",
+      "benefit": "Mantém o relógio da BIOS consistente com sistemas UNIX/Linux/macOS.",
+      "undo_hint": "Define RealTimeIsUniversal = 0.",
+      "registry_changes": [
+        {
+          "hive": "HKLM",
+          "path": "SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation",
+          "name": "RealTimeIsUniversal",
+          "type": "REG_DWORD",
+          "value": 1,
+          "original_value": 0
+        }
+      ],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFFixesNetwork",
+      "name": "Reset Completo da Pilha de Rede e Cache DNS",
+      "category": "Reparos do Sistema",
+      "panel": "fixes",
+      "os_platform": "windows",
+      "preset": "fixes",
+      "risk_level": "low",
+      "requires_admin": true,
+      "description": "Executa netsh winsock reset, netsh int ip reset e ipconfig /flushdns para corrigir lentidão ou falhas de conectividade.",
+      "benefit": "Resolve problemas de resolução de DNS e sockets corrompidos.",
+      "undo_hint": "Operação de limpeza de cache e reset de pilha TCP/IP.",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "netsh winsock reset",
+        "netsh int ip reset",
+        "ipconfig /flushdns"
+      ],
+      "undo_commands": []
+    },
+    {
+      "id": "WPFFixesUpdate",
+      "name": "Reset Seguro do Cache e Serviços do Windows Update",
+      "category": "Reparos do Sistema",
+      "panel": "fixes",
+      "os_platform": "windows",
+      "preset": "fixes",
+      "risk_level": "low",
+      "requires_admin": true,
+      "description": "Para os serviços BITS, wuauserv e cryptsvc, limpa o cache corrompido em SoftwareDistribution e catroot2 e reinicia os serviços.",
+      "benefit": "Destrava atualizações presas e libera gigabytes de downloads de updates antigos.",
+      "undo_hint": "Reinicia os serviços wuauserv, BITS e cryptsvc normalmente.",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "net stop bits",
+        "net stop wuauserv",
+        "net stop cryptsvc",
+        "cmd.exe /c \"del /f /s /q %SystemRoot%\\SoftwareDistribution\\Download\\* >nul 2>&1\"",
+        "net start cryptsvc",
+        "net start wuauserv",
+        "net start bits"
+      ],
+      "undo_commands": [
+        "net start cryptsvc",
+        "net start wuauserv",
+        "net start bits"
+      ]
+    },
+    {
+      "id": "WPFFixesCorrupt",
+      "name": "Verificar e Reparar Integridade da Imagem do Windows (DISM + SFC)",
+      "category": "Reparos do Sistema",
+      "panel": "fixes",
+      "os_platform": "windows",
+      "preset": "fixes",
+      "risk_level": "safe",
+      "requires_admin": true,
+      "description": "Executa DISM /Online /Cleanup-Image /RestoreHealth seguido de sfc /scannow para detectar e corrigir arquivos de sistema corrompidos.",
+      "benefit": "Restaura a estabilidade e integridade de DLLs nativas do Windows.",
+      "undo_hint": "Verificação oficial de integridade da Microsoft.",
+      "registry_changes": [],
+      "service_changes": [],
+      "scheduled_tasks": [],
+      "invoke_commands": [
+        "Dism.exe /Online /Cleanup-Image /RestoreHealth",
+        "sfc.exe /scannow"
+      ],
+      "undo_commands": []
+    }
+  ]
+}

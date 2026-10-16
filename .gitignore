@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 
 # Relatórios temporários e outputs gerados
+outputs/*.html
+outputs/snapshots/
+!outputs/.gitkeep
 analisador_limpeza_disco/outputs/*.html
 !analisador_limpeza_disco/outputs/.gitkeep
 
@@ -11,3 +14,4 @@ analisador_limpeza_disco/outputs/*.html
 .venv/
 venv/
 ENV/
+.DS_Store

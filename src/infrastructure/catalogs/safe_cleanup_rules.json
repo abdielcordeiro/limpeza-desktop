@@ -1,0 +1,186 @@
+{
+  "catalog_version": "2.0.0",
+  "zero_network_verified": true,
+  "rules": [
+    {
+      "id": "win_system_temp",
+      "name": "Temporários do Sistema e Usuário (%TEMP%, System Temp, Prefetch)",
+      "category": "system_temp",
+      "os_platform": "windows",
+      "description": "Arquivos transitórios em %TEMP%, %SystemRoot%\\Temp e cache de pré-carregamento %SystemRoot%\\Prefetch.",
+      "target_paths": [
+        "%TEMP%",
+        "%SystemRoot%\\Temp",
+        "%SystemRoot%\\Prefetch"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "win_gpu_shaders",
+      "name": "Caches de Shaders de GPU (DirectX, OpenGL, NVIDIA, AMD)",
+      "category": "gpu_shaders",
+      "os_platform": "windows",
+      "description": "Shaders compilados antigos em DXCache, GLCache, D3DSCache e NV_Cache.",
+      "target_paths": [
+        "%LOCALAPPDATA%\\D3DSCache",
+        "%LOCALAPPDATA%\\NVIDIA\\DXCache",
+        "%LOCALAPPDATA%\\NVIDIA\\GLCache",
+        "%ProgramData%\\NVIDIA Corporation\\NV_Cache",
+        "%LOCALAPPDATA%\\AMD\\DxCache",
+        "%LOCALAPPDATA%\\AMD\\GLCache",
+        "%APPDATA%\\NVIDIA\\ComputeCache"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "win_crash_dumps",
+      "name": "Relatórios de Erro e Crash Dumps (WER & App Dumps)",
+      "category": "crash_dumps",
+      "os_platform": "windows",
+      "description": "Arquivos de despejo de memória (.dmp) e relatórios acumulados do Windows Error Reporting.",
+      "target_paths": [
+        "%LOCALAPPDATA%\\CrashDumps",
+        "%LOCALAPPDATA%\\Microsoft\\Windows\\WER\\ReportArchive",
+        "%LOCALAPPDATA%\\Microsoft\\Windows\\WER\\ReportQueue",
+        "%ProgramData%\\Microsoft\\Windows\\WER\\ReportArchive",
+        "%ProgramData%\\Microsoft\\Windows\\WER\\ReportQueue"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "win_browser_electron_cache",
+      "name": "Caches Transitórios de Navegadores e Apps Electron",
+      "category": "browser_electron_cache",
+      "os_platform": "windows",
+      "description": "Caches de mídia e GPUCache do Chrome, Edge, Brave, VSCode, Discord e Slack (preserva logins e senhas).",
+      "target_paths": [
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache\\Cache_Data",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Code Cache",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\GPUCache",
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache\\Cache_Data",
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Code Cache",
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\GPUCache",
+        "%APPDATA%\\Code\\Cache\\Cache_Data",
+        "%APPDATA%\\Code\\CachedData",
+        "%APPDATA%\\Code\\GPUCache",
+        "%APPDATA%\\discord\\Cache\\Cache_Data",
+        "%APPDATA%\\discord\\Code Cache",
+        "%APPDATA%\\discord\\GPUCache",
+        "%APPDATA%\\Slack\\Cache\\Cache_Data",
+        "%APPDATA%\\Slack\\Code Cache",
+        "%APPDATA%\\Slack\\GPUCache"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "win_dev_caches",
+      "name": "Caches de Ferramentas de Desenvolvimento (pip, npm, yarn, gradle, nuget)",
+      "category": "dev_caches",
+      "os_platform": "windows",
+      "description": "Arquivos compactados de instaladores de pacotes em cache (pip, npm-cache, yarn, gradle, nuget).",
+      "target_paths": [
+        "%LOCALAPPDATA%\\pip\\cache",
+        "%APPDATA%\\npm-cache\\_cacache",
+        "%LOCALAPPDATA%\\npm-cache\\_cacache",
+        "%LOCALAPPDATA%\\Yarn\\Cache",
+        "%USERPROFILE%\\.gradle\\caches",
+        "%USERPROFILE%\\.nuget\\packages"
+      ],
+      "default_enabled": false,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_system_temp",
+      "name": "Temporários e Logs de Usuário (~/Library/Logs & /tmp)",
+      "category": "system_temp",
+      "os_platform": "macos",
+      "description": "Arquivos de log antigos em ~/Library/Logs e arquivos transitórios do usuário.",
+      "target_paths": [
+        "~/Library/Logs"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_gpu_shaders",
+      "name": "Caches de Shaders e WebKit / Metal do Usuário",
+      "category": "gpu_shaders",
+      "os_platform": "macos",
+      "description": "Caches de renderização gráfica e compiladores de shaders em ~/Library/Caches.",
+      "target_paths": [
+        "~/Library/Caches/com.apple.WebKit.GPU",
+        "~/Library/Caches/com.apple.tiswitcher.cache"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_crash_dumps",
+      "name": "Relatórios de Falha e DiagnosticReports (macOS CrashReporter)",
+      "category": "crash_dumps",
+      "os_platform": "macos",
+      "description": "Relatórios de falhas (.ips / .crash) em ~/Library/Logs/DiagnosticReports e CrashReporter.",
+      "target_paths": [
+        "~/Library/Logs/DiagnosticReports",
+        "~/Library/Application Support/CrashReporter"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_browser_electron_cache",
+      "name": "Caches Transitórios de Navegadores e Apps Electron (macOS)",
+      "category": "browser_electron_cache",
+      "os_platform": "macos",
+      "description": "Caches de mídia e GPUCache do Chrome, Safari, VSCode, Discord e Spotify (preserva sessões e senhas).",
+      "target_paths": [
+        "~/Library/Caches/Google/Chrome/Default/Cache",
+        "~/Library/Caches/Google/Chrome/Default/Code Cache",
+        "~/Library/Caches/com.microsoft.VSCode.ShipIt",
+        "~/Library/Application Support/Code/Cache/Cache_Data",
+        "~/Library/Application Support/Code/CachedData",
+        "~/Library/Application Support/Code/GPUCache",
+        "~/Library/Application Support/discord/Cache/Cache_Data",
+        "~/Library/Application Support/discord/Code Cache",
+        "~/Library/Application Support/discord/GPUCache",
+        "~/Library/Caches/com.spotify.client/Data"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_dev_caches",
+      "name": "Caches de Desenvolvimento (Xcode DerivedData, Simulators, Homebrew, pip, npm, Gradle, Cargo)",
+      "category": "dev_caches",
+      "os_platform": "macos",
+      "description": "Artefatos reconstruíveis de compilação Xcode DerivedData, CoreSimulator, Homebrew, pip, npm, Gradle e Cargo.",
+      "target_paths": [
+        "~/Library/Developer/Xcode/DerivedData",
+        "~/Library/Developer/CoreSimulator/Caches",
+        "~/Library/Caches/Homebrew/downloads",
+        "~/Library/Caches/pip",
+        "~/.npm/_cacache",
+        "~/.gradle/caches",
+        "~/.cargo/registry/cache"
+      ],
+      "default_enabled": false,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_trash",
+      "name": "Esvaziar Lixeira do Usuário (~/.Trash)",
+      "category": "trash",
+      "os_platform": "macos",
+      "description": "Remove arquivos descartados acumulados na Lixeira do usuário.",
+      "target_paths": [
+        "~/.Trash"
+      ],
+      "default_enabled": false,
+      "risk_level": "low"
+    }
+  ]
+}
