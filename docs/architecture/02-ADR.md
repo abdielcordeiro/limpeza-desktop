@@ -51,3 +51,21 @@ Este documento registra as decisões arquiteturais críticas do projeto **Limpez
 - **Decisão:**
   - Fornecer uma interface gráfica inicial de seleção intuitiva (compatível com Windows e macOS sem dependências externas complexas) onde o usuário configura sua execução.
   - Gerar o relatório final em `outputs/relatorio_limpeza_disco.html` totalmente autocontido (CSS e JS inline, sem requisição externa para `fonts.googleapis.com`, garantindo zero vazamento de IP ao abrir o relatório).
+
+---
+
+## ADR-005: Reanálise On-Demand, Reatividade no DOM e Drill-Down Dinâmico de Subpastas
+- **Status:** Aceito
+- **Data:** 2026-10-16
+- **Contexto:**
+  Durante os testes de usuário no macOS, foram identificadas 4 necessidades de UX:
+  1. Capacidade de reanalisar o sistema após limpezas parciais sem reiniciar o processo no terminal.
+  2. Atualização imediata do DOM ao limpar pastas órfãs (garantindo que os itens apagados sumam da tela com feedback de sucesso).
+  3. Visualização detalhada das subpastas mais pesadas dentro de diretórios gigantes (drill-down limpo sem poluir a tabela).
+  4. Navegação bidirecional entre o Dashboard e a Janela Inicial de Parâmetros.
+- **Decisão:**
+  1. Implementar endpoint `/api/reanalyze` no servidor HTTP local que re-executa a varredura e retorna os dados atualizados para refresh instantâneo.
+  2. Implementar atualização reativa no JavaScript de `html_reporter.py`: remoção dos caminhos limpos de `REPORT_DATA.clean_suggestions` e do DOM, com recálculo de métricas em tempo real.
+  3. Enriquecer `OccupantItem` com `sub_occupants` computados dinamicamente no `disk_scanner.py`, renderizados com botão de expansão accordion elegante na tabela do Passo 5.
+  4. Adicionar botões de navegação no cabeçalho do Dashboard: "⚙️ Nova Configuração / Início" e "🔄 Reanalisar Sistema".
+

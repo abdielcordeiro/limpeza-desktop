@@ -110,6 +110,43 @@ Este documento define o escopo funcional, critérios de aceite e restrições n�
 
 ---
 
+### RF-07: Reanálise On-Demand do Sistema (Re-scan sem Reiniciar)
+- **Descrição:** O Dashboard deve disponibilizar uma ação direta de "Reanalisar Sistema" que re-executa a varredura e atualização de métricas do sistema sem exigir encerramento ou reinicialização do comando no terminal.
+- **Critérios de Aceite:**
+  1. Disponibilizar botão "🔄 Reanalisar Sistema" no cabeçalho do Dashboard.
+  2. Disparar nova verificação das partições/volumes, espaço livre, ocupantes e pendências.
+  3. Atualizar em tempo real os contadores do topo (`stat-freed`, `stat-potential`) e os dados de cada uma das 7 abas sem perda de contexto.
+
+---
+
+### RF-08: Remoção Reativa e Ocultação Imediata de Pastas Órfãs na UI
+- **Descrição:** Ao acionar a limpeza de pastas órfãs e caches selecionados na aba 4, os itens removidos com sucesso devem sair imediatamente da lista visual da tela.
+- **Critérios de Aceite:**
+  1. Ao clicar em "Limpar Selecionados", disparar requisição para o motor local e receber a lista de caminhos removidos (`cleaned_paths`).
+  2. Remover imediatamente os itens apagados da listagem no DOM e atualizar a contagem de itens pendentes.
+  3. Atualizar os totais de espaço liberado (`stat-freed`) e potencial adicional recuperável (`stat-potential`).
+  4. Exibir feedback visual inequívoco (toast animado) com a quantidade exata de arquivos/pastas removidas e megabytes/gigabytes liberados no disco.
+
+---
+
+### RF-09: Drill-Down Dinâmico de Subpastas Pesadas (Top Ocupantes sem Poluição Visual)
+- **Descrição:** Na aba 5 (Top 100 Maiores Arquivos e Pastas), permitir ao usuário expandir dinamicamente as subpastas mais pesadas de cada diretório ocupante.
+- **Critérios de Aceite:**
+  1. Identificar e calcular o peso das subpastas diretas mais volumosas durante a varredura (`sub_occupants`).
+  2. Apresentar na tabela um controle visual intuitivo (ex: botão expansível `▶ Ver Subpastas (N)`) apenas para itens do tipo "Pasta" que possuam subpastas expressivas.
+  3. Ao expandir, exibir uma lista aninhada limpa e indentada contendo o nome da subpasta, caminho, tamanho formatado e barra proporcional de impacto em relação à pasta pai.
+  4. Manter a visão geral colapsada e limpa por padrão para evitar poluição visual.
+
+---
+
+### RF-10: Navegação Bidirecional entre Dashboard e Formulário Inicial de Seleção
+- **Descrição:** Permitir ao usuário alternar facilmente entre o Dashboard de Resultados e a Janela Inicial de Parâmetros/Configuração.
+- **Critérios de Aceite:**
+  1. Incluir botão de navegação "⚙️ Nova Configuração / Início" no cabeçalho do Dashboard.
+  2. Permitir retornar ao formulário inicial em `/` para alterar sistema operacional, escopo de varredura ou selecionar novos módulos/tweaks para nova execução.
+
+---
+
 ## 2. Requisitos Não-Funcionais (RNF)
 
 ### RNF-01: Política Estrita Zero-Network & Zero-Telemetry (Privacidade Absoluta)

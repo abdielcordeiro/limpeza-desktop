@@ -50,7 +50,11 @@ python main.py
    - Seleção individual de cada tweak com descrição clara e nível de risco.
    - Botão **"Desfazer Otimizações (Undo)"** para reverter modificações anteriores.
 4. **Acompanhar o Progresso ao Vivo:** Barra de porcentagem, etapa atual e console de log em tempo real.
-5. **Dashboard de Resultados:** Ao terminar, a tela exibe o relatório com os gigabytes liberados, ranking dos maiores arquivos e checklist interativo para desinstalar aplicativos pesados ou limpar pastas órfãs restantes.
+5. **Dashboard de Resultados Interativo & Reativo:** Ao terminar, a tela exibe o relatório com os gigabytes liberados, ranking dos maiores arquivos e ferramentas dinâmicas:
+   - **🔄 Reanálise On-Demand:** Permite reanalisar discos, ocupantes e métricas com um clique direto pelo Dashboard sem reiniciar o comando no terminal.
+   - **🗑️ Remoção Reativa de Órfãos (Passo 4):** Ao selecionar e limpar pastas órfãs e caches, os itens são removidos do disco e **desaparecem imediatamente da tabela**, atualizando em tempo real o espaço liberado e pendências.
+   - **📂 Drill-down de Subpastas (Passo 5):** Expansão sanfonada limpa nos maiores diretórios para inspecionar exatamente quais subpastas consomem mais espaço com mini barras de proporção visual.
+   - **⚙️ Retorno ao Formulário Inicial:** Botão de navegação direto no topo do Dashboard para voltar à tela inicial (`/`) e realizar novas configurações a qualquer momento.
 
 ---
 
@@ -63,7 +67,7 @@ python3 main.py --dry-run --headless
 
 - Mede e calcula exatamente quanto espaço você liberaria.
 - Cruza as 5 camadas de proteção para detectar pastas órfãs reais.
-- Mapeia os 100 maiores arquivos da máquina e os aplicativos instalados mais pesados.
+- Mapeia os 100 maiores arquivos da máquina e os aplicativos instalados mais pesados com subpastas detalhadas.
 - Salva o relatório completo em `outputs/relatorio_limpeza_disco.html` e imprime o link no terminal.
 
 ---
@@ -117,7 +121,7 @@ python3 main.py --dry-run --headless --os windows --preset advanced
 
 ## 🧪 Testes Automatizados e Qualidade
 
-O projeto conta com uma suíte de 12 testes automatizados cobrindo Domínio, Catálogos, Algoritmo de 5 Camadas, Limpeza Segura, Reversibilidade (`Undo`), Proteção contra Path Traversal e Auditoria Estática Zero-Network:
+O projeto conta com uma suíte de 13 testes automatizados cobrindo Domínio, Catálogos, Algoritmo de 5 Camadas, Limpeza Segura, Reversibilidade (`Undo`), Drill-down de Subpastas, Reanálise On-Demand, Proteção contra Path Traversal e Auditoria Estática Zero-Network:
 
 ```bash
 python3 -m unittest discover -s tests -v
