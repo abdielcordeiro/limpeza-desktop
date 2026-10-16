@@ -31,7 +31,7 @@ class TestReportAndLocalServer(unittest.TestCase):
             with open(generated_path, "r", encoding="utf-8") as f:
                 html_text = f.read()
 
-            # Verifica presença das 7 abas obrigatórias
+            # Verifica presença das 7 abas obrigatórias e novos controles de navegação e reanálise
             self.assertIn("1. Resumo & Saúde dos Discos", html_text)
             self.assertIn("2. Limpeza Autônoma Executada", html_text)
             self.assertIn("3. Aplicativos Grandes & Migração", html_text)
@@ -39,6 +39,12 @@ class TestReportAndLocalServer(unittest.TestCase):
             self.assertIn("5. Top 100 Maiores Arquivos & Pastas", html_text)
             self.assertIn("6. Otimizações do Sistema (WinUtil / macOS)", html_text)
             self.assertIn("7. Cloud (OneDrive / iCloud) & Updates", html_text)
+            self.assertIn("Nova Configuração / Início", html_text)
+            self.assertIn("href=\"/\"", html_text)
+            self.assertIn("Reanalisar Sistema", html_text)
+            self.assertIn("triggerReanalyze()", html_text)
+            self.assertIn("btn-expand-sub", html_text)
+            self.assertIn("subfolder-container", html_text)
 
             # Testa todas as rotas da API local (127.0.0.1)
             panel = LocalControlPanelServer(
@@ -76,6 +82,29 @@ class TestReportAndLocalServer(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertTrue(clean_res["success"])
             self.assertEqual(clean_res["bytes_freed"], 10)
+
+            # POST /api/clean-selected (real) com retorno enriquecido e reatividade
+            status, _, clean_res_real = panel.dispatch_request(
+                "POST",
+                "/api/clean-selected",
+                payload={"paths": [dummy_dir], "mode": "real"},
+            )
+            self.assertEqual(status, 200)
+            self.assertTrue(clean_res_real["success"])
+            self.assertIn(dummy_dir, clean_res_real["cleaned_paths"])
+            self.assertIn("total_freed_formatted", clean_res_real)
+            self.assertIn("potential_extra_formatted", clean_res_real)
+            self.assertIn("remaining_orphans_count", clean_res_real)
+
+            # POST /api/reanalyze
+            status, _, reanalyze_res = panel.dispatch_request(
+                "POST",
+                "/api/reanalyze",
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(reanalyze_res["status"], "ok")
+            self.assertIn("report", reanalyze_res)
+            self.assertEqual(reanalyze_res["report"]["execution_mode"], "dry_run")
 
             # POST /api/undo (dry_run)
             status, _, undo_res = panel.dispatch_request(

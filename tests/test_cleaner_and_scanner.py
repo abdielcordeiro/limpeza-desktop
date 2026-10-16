@@ -96,6 +96,44 @@ class TestAutonomousCleanerAndScanner(unittest.TestCase):
             self.assertIn("ObsoleteUninstalledApp2017", orphan_names)
             self.assertNotIn("Spotify", orphan_names)
 
+    def test_subfolder_drilldown_occupants(self) -> None:
+        """Valida que diretórios pesados mapeiam suas maiores subpastas dinamicamente."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            heavy_dir = os.path.join(tmpdir, "HeavyDataProject")
+            sub_a = os.path.join(heavy_dir, "SubfolderAlpha")
+            sub_b = os.path.join(heavy_dir, "SubfolderBeta")
+            os.makedirs(sub_a, exist_ok=True)
+            os.makedirs(sub_b, exist_ok=True)
+
+            # Sub A: 2 MB, Sub B: 1 MB
+            with open(os.path.join(sub_a, "data_a.bin"), "wb") as f:
+                f.write(b"A" * (2 * 1024 * 1024))
+            with open(os.path.join(sub_b, "data_b.bin"), "wb") as f:
+                f.write(b"B" * (1 * 1024 * 1024))
+
+            scanner = DiskScannerAdapter(min_orphan_bytes=512 * 1024)
+            partitions = MacOSSystemProbeAdapter().get_partitions()
+            top_occupants, _, _ = scanner.scan_and_evaluate(
+                target_paths=[tmpdir],
+                active_indicators=set(),
+                partitions=partitions,
+                os_platform=OSPlatform.MACOS,
+                top_n=20,
+            )
+
+            # Procura pelo HeavyDataProject nos ocupantes
+            heavy_occupant = next((o for o in top_occupants if o.name == "HeavyDataProject"), None)
+            self.assertIsNotNone(heavy_occupant)
+            self.assertEqual(heavy_occupant.item_type, "Pasta")
+            self.assertGreaterEqual(len(heavy_occupant.sub_occupants), 2)
+
+            # Verifica ordenação decrescente das subpastas
+            first_sub = heavy_occupant.sub_occupants[0]
+            second_sub = heavy_occupant.sub_occupants[1]
+            self.assertEqual(first_sub["name"], "SubfolderAlpha")
+            self.assertGreater(first_sub["size"], second_sub["size"])
+            self.assertEqual(second_sub["name"], "SubfolderBeta")
+
 
 if __name__ == "__main__":
     unittest.main()
