@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """Motor de Limpeza Autônoma Multiplataforma (Windows & macOS)."""
 import os
+import sys
+import stat
 import json
 import shutil
+import subprocess
 from typing import List, Tuple, Optional
 from src.domain.entities import AutonomousCleanupRule, AutonomousCleanupEntry
 from src.domain.ports import IFileSystemCleanerPort
@@ -152,6 +155,108 @@ def is_safe_path_to_clean(target_path: str) -> bool:
     return True
 
 
+def _force_remove_file(file_path: str) -> None:
+    """
+    Remove um arquivo garantindo remoção de atributos somente-leitura
+    e flags de imutabilidade (uchg no macOS), desbloqueando também o diretório pai se necessário.
+    """
+    try:
+        os.remove(file_path)
+    except (PermissionError, OSError):
+        try:
+            parent_dir = os.path.dirname(file_path)
+            if parent_dir and os.path.exists(parent_dir):
+                try:
+                    os.chmod(parent_dir, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR | stat.S_IWRITE)
+                except Exception:
+                    pass
+
+            # 1. No macOS, remove flag de imutabilidade (uchg) se aplicável
+            if sys.platform == "darwin":
+                try:
+                    subprocess.run(
+                        ["chflags", "nouchg", file_path],
+                        capture_output=True,
+                        timeout=2,
+                        check=False,
+                    )
+                except Exception:
+                    pass
+
+            # 2. Concede permissão de escrita ao proprietário (no Windows desativa FILE_ATTRIBUTE_READONLY)
+            os.chmod(file_path, stat.S_IWUSR | stat.S_IRUSR | stat.S_IWRITE)
+            os.remove(file_path)
+        except Exception:
+            raise
+
+
+def _force_remove_dir(dir_path: str) -> None:
+    """
+    Remove um diretório vazio garantindo remoção de atributos de proteção
+    no próprio diretório e no diretório-pai.
+    """
+    try:
+        os.rmdir(dir_path)
+    except (PermissionError, OSError):
+        try:
+            parent_dir = os.path.dirname(dir_path)
+            if parent_dir and os.path.exists(parent_dir):
+                try:
+                    os.chmod(parent_dir, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR | stat.S_IWRITE)
+                except Exception:
+                    pass
+
+            if sys.platform == "darwin":
+                try:
+                    subprocess.run(
+                        ["chflags", "nouchg", dir_path],
+                        capture_output=True,
+                        timeout=2,
+                        check=False,
+                    )
+                except Exception:
+                    pass
+
+            os.chmod(dir_path, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR | stat.S_IWRITE)
+            os.rmdir(dir_path)
+        except Exception:
+            raise
+
+
+def _rmtree_resilient_handler(func, path) -> None:
+    """Desbloqueia permissões de arquivo/pasta pai e repete a remoção para rmtree."""
+    try:
+        parent = os.path.dirname(path)
+        if parent and os.path.exists(parent):
+            try:
+                os.chmod(parent, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR | stat.S_IWRITE)
+            except Exception:
+                pass
+        if sys.platform == "darwin":
+            try:
+                subprocess.run(
+                    ["chflags", "-R", "nouchg", path],
+                    capture_output=True,
+                    timeout=2,
+                    check=False,
+                )
+            except Exception:
+                pass
+        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR | stat.S_IWRITE)
+        func(path)
+    except Exception:
+        pass
+
+
+def _on_rmtree_error(func, path, exc_info) -> None:
+    """Callback para shutil.rmtree em Python < 3.12."""
+    _rmtree_resilient_handler(func, path)
+
+
+def _on_rmtree_onexc(func, path, exc) -> None:
+    """Callback para shutil.rmtree em Python >= 3.12."""
+    _rmtree_resilient_handler(func, path)
+
 
 class AutonomousCleanerAdapter(IFileSystemCleanerPort):
     """Implementa a limpeza autônoma e seletiva de caches, temporários e pastas órfãs."""
@@ -190,7 +295,7 @@ class AutonomousCleanerAdapter(IFileSystemCleanerPort):
         self, dir_path: str, mode: ExecutionMode, remove_root: bool = False
     ) -> Tuple[int, int, int]:
         """
-        Varre uma pasta (ou arquivo) e contabiliza/remove seu conteúdo.
+        Varre uma pasta (ou arquivo) e contabiliza/remove seu conteúdo com deleção resiliente.
         Retorna (bytes_freed, files_removed, errors_skipped).
         """
         if not os.path.exists(dir_path) or not is_safe_path_to_clean(dir_path):
@@ -200,12 +305,25 @@ class AutonomousCleanerAdapter(IFileSystemCleanerPort):
         files_removed = 0
         errors_skipped = 0
 
-        # Caso seja um arquivo único
-        if os.path.isfile(dir_path) and not os.path.islink(dir_path):
+        # Caso seja um symlink ou arquivo único
+        if os.path.islink(dir_path):
+            try:
+                fsize = 0
+                try:
+                    fsize = os.path.getsize(dir_path)
+                except OSError:
+                    pass
+                if mode == ExecutionMode.REAL:
+                    os.unlink(dir_path)
+                return fsize, 1, 0
+            except (PermissionError, OSError):
+                return 0, 0, 1
+
+        if os.path.isfile(dir_path):
             try:
                 fsize = os.path.getsize(dir_path)
                 if mode == ExecutionMode.REAL:
-                    os.remove(dir_path)
+                    _force_remove_file(dir_path)
                 return fsize, 1, 0
             except (PermissionError, OSError):
                 return 0, 0, 1
@@ -222,7 +340,7 @@ class AutonomousCleanerAdapter(IFileSystemCleanerPort):
                         continue
                     fsize = os.path.getsize(fpath)
                     if mode == ExecutionMode.REAL:
-                        os.remove(fpath)
+                        _force_remove_file(fpath)
                     bytes_freed += fsize
                     files_removed += 1
                 except (PermissionError, FileNotFoundError, OSError):
@@ -235,24 +353,386 @@ class AutonomousCleanerAdapter(IFileSystemCleanerPort):
                         if os.path.islink(dpath):
                             os.unlink(dpath)
                         else:
-                            os.rmdir(dpath)
+                            _force_remove_dir(dpath)
                     except (PermissionError, OSError):
                         pass
 
         if remove_root and mode == ExecutionMode.REAL:
             try:
                 if os.path.exists(dir_path):
-                    shutil.rmtree(dir_path, ignore_errors=True)
+                    if hasattr(shutil, "rmtree") and "onexc" in shutil.rmtree.__code__.co_varnames:
+                        shutil.rmtree(dir_path, onexc=_on_rmtree_onexc)
+                    else:
+                        shutil.rmtree(dir_path, onerror=_on_rmtree_error)
+                    if os.path.exists(dir_path):
+                        _force_remove_dir(dir_path)
             except OSError:
                 pass
 
         return bytes_freed, files_removed, errors_skipped
+
+    def _is_trash_rule(self, rule: AutonomousCleanupRule) -> bool:
+        """Verifica se a regra é de esvaziamento de lixeira (macOS ~/.Trash ou Windows Recycle Bin)."""
+        if rule.category and rule.category.lower() == "trash":
+            return True
+        if rule.id in ("mac_trash", "win_trash"):
+            return True
+        for raw_target in rule.target_paths:
+            if isinstance(raw_target, str):
+                target_lower = raw_target.lower().replace("\\", "/").rstrip("/")
+                if (
+                    "/.trash" in target_lower
+                    or target_lower.endswith(".trash")
+                    or ".trashes" in target_lower
+                    or "$recycle.bin" in target_lower
+                    or "recycle.bin" in target_lower
+                ):
+                    return True
+        return False
+
+    def _count_macos_trash_items(self) -> int:
+        """Contabiliza itens na Lixeira do macOS via AppleScript Finder com fallback POSIX."""
+        # 1. osascript Finder
+        try:
+            res = subprocess.run(
+                ["osascript", "-e", 'tell application "Finder" to count every item of trash'],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if res.returncode == 0:
+                raw = res.stdout.strip()
+                if raw.isdigit():
+                    return int(raw)
+        except Exception:
+            pass
+
+        # 2. Fallback de contagem direta caso o terminal possua permissão POSIX
+        trash_path = os.path.expanduser("~/.Trash")
+        if os.path.exists(trash_path) and os.path.isdir(trash_path):
+            try:
+                return len(os.listdir(trash_path))
+            except Exception:
+                pass
+        return 0
+
+    def _calculate_trash_bytes_posix(self, paths: List[str]) -> int:
+        """Soma os bytes dos arquivos na lixeira se o processo tiver permissão de leitura."""
+        total = 0
+        for p in paths:
+            if not os.path.exists(p) or not os.path.isdir(p):
+                continue
+            try:
+                for root, dirs, files in os.walk(p, topdown=True):
+                    for f in files:
+                        fp = os.path.join(root, f)
+                        try:
+                            if not os.path.islink(fp):
+                                total += os.path.getsize(fp)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        return total
+
+    def _execute_macos_trash(
+        self, rule: AutonomousCleanupRule, mode: ExecutionMode
+    ) -> AutonomousCleanupEntry:
+        """Executa o esvaziamento nativo da Lixeira no macOS usando AppleScript e chflags."""
+        valid_paths: List[str] = []
+        for p in rule.target_paths:
+            if not isinstance(p, str):
+                continue
+            expanded = expand_os_path(p)
+            norm = expanded.replace("\\", "/").rstrip("/").lower()
+            is_trash_name = (
+                norm.endswith("/.trash")
+                or norm.endswith("/.trashes")
+                or os.path.basename(norm) in (".trash", ".trashes")
+                or "/.trash/" in norm
+            )
+            if is_trash_name and is_safe_path_to_clean(expanded):
+                valid_paths.append(expanded)
+
+        if not valid_paths:
+            if not rule.target_paths or rule.id == "mac_trash":
+                valid_paths = [expand_os_path("~/.Trash")]
+            else:
+                return AutonomousCleanupEntry(
+                    id=rule.id,
+                    name=rule.name,
+                    category=rule.category,
+                    target_paths=[],
+                    bytes_freed=0,
+                    files_removed=0,
+                    status="cleaned" if mode == ExecutionMode.REAL else "simulated",
+                    details="Nenhum diretório de Lixeira seguro/válido identificado para esta regra.",
+                    errors_skipped=1,
+                )
+
+        resolved_paths = valid_paths
+
+        count_before = self._count_macos_trash_items()
+        bytes_estimated = self._calculate_trash_bytes_posix(resolved_paths)
+
+        if mode == ExecutionMode.DRY_RUN:
+            details = (
+                f"Simulação (Dry-Run): {count_before} itens na Lixeira "
+                f"({format_bytes(bytes_estimated)} identificados)."
+                if count_before > 0
+                else "Lixeira do macOS vazia. Nenhum item pendente de esvaziamento."
+            )
+            return AutonomousCleanupEntry(
+                id=rule.id,
+                name=rule.name,
+                category=rule.category,
+                target_paths=resolved_paths,
+                bytes_freed=bytes_estimated,
+                files_removed=count_before,
+                status="simulated",
+                details=details,
+                errors_skipped=0,
+            )
+
+        # Modo REAL:
+        finder_success = False
+        try:
+            res = subprocess.run(
+                ["osascript", "-e", 'tell application "Finder" to empty trash'],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            if res.returncode == 0:
+                finder_success = True
+        except Exception:
+            pass
+
+        # Complementa com remoção direta de flags de imutabilidade (sem invocação de subshell)
+        for trash_dir in resolved_paths:
+            if os.path.exists(trash_dir):
+                try:
+                    subprocess.run(
+                        ["chflags", "-R", "nouchg", trash_dir],
+                        capture_output=True,
+                        timeout=5,
+                        check=False,
+                    )
+                except Exception:
+                    pass
+
+        # Limpeza direta de resíduos caso o terminal tenha permissão POSIX
+        direct_removed = 0
+        direct_bytes = 0
+        for trash_dir in resolved_paths:
+            if os.path.exists(trash_dir) and os.path.isdir(trash_dir):
+                try:
+                    for item in os.listdir(trash_dir):
+                        item_path = os.path.join(trash_dir, item)
+                        try:
+                            if os.path.islink(item_path) or os.path.isfile(item_path):
+                                sz = os.path.getsize(item_path) if not os.path.islink(item_path) else 0
+                                _force_remove_file(item_path)
+                                direct_removed += 1
+                                direct_bytes += sz
+                            elif os.path.isdir(item_path):
+                                b, f, _ = self._clean_directory_contents(
+                                    item_path, mode=ExecutionMode.REAL, remove_root=True
+                                )
+                                direct_removed += (f + 1)
+                                direct_bytes += b
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+        count_after = self._count_macos_trash_items()
+        files_removed = max(count_before - count_after, direct_removed)
+        if files_removed == 0 and count_before > 0 and finder_success:
+            files_removed = count_before
+
+        total_bytes = max(bytes_estimated, direct_bytes)
+
+        if files_removed > 0:
+            details = (
+                f"Lixeira do macOS esvaziada com sucesso: {files_removed} itens removidos "
+                f"({format_bytes(total_bytes)} liberados)."
+            )
+        elif count_before == 0:
+            details = "Lixeira do macOS já estava vazia. Nenhum item a remover."
+        else:
+            details = "Comando de esvaziamento da Lixeira executado com sucesso."
+
+        return AutonomousCleanupEntry(
+            id=rule.id,
+            name=rule.name,
+            category=rule.category,
+            target_paths=resolved_paths,
+            bytes_freed=total_bytes,
+            files_removed=files_removed,
+            status="cleaned",
+            details=details,
+            errors_skipped=0,
+        )
+
+    def _query_windows_recycle_bin(self) -> Tuple[int, int]:
+        """Consulta bytes e número de itens na lixeira do Windows via Shell32 ou PowerShell."""
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                class SHQUERYRBINFO(ctypes.Structure):
+                    _fields_ = [
+                        ("cbSize", wintypes.DWORD),
+                        ("i64Size", ctypes.c_int64),
+                        ("i64NumItems", ctypes.c_int64),
+                    ]
+
+                rb = SHQUERYRBINFO()
+                rb.cbSize = ctypes.sizeof(SHQUERYRBINFO)
+                res = ctypes.windll.shell32.SHQueryRecycleBinW(None, ctypes.byref(rb))
+                if res == 0:
+                    return int(rb.i64Size), int(rb.i64NumItems)
+            except Exception:
+                pass
+
+            try:
+                cmd = "(New-Object -ComObject Shell.Application).NameSpace(0xa).Items().Count"
+                res = subprocess.run(
+                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+                if res.returncode == 0 and res.stdout.strip().isdigit():
+                    return 0, int(res.stdout.strip())
+            except Exception:
+                pass
+
+        return 0, 0
+
+    def _execute_windows_trash(
+        self, rule: AutonomousCleanupRule, mode: ExecutionMode
+    ) -> AutonomousCleanupEntry:
+        """Executa o esvaziamento nativo da Lixeira no Windows usando Shell32 ou PowerShell."""
+        valid_paths = [
+            expand_os_path(p)
+            for p in rule.target_paths
+            if isinstance(p, str) and ("recycle" in p.lower() or "$recycle.bin" in p.lower())
+        ]
+        if not valid_paths:
+            if not rule.target_paths or rule.id == "win_trash":
+                valid_paths = ["$Recycle.Bin"]
+            else:
+                return AutonomousCleanupEntry(
+                    id=rule.id,
+                    name=rule.name,
+                    category=rule.category,
+                    target_paths=[],
+                    bytes_freed=0,
+                    files_removed=0,
+                    status="cleaned" if mode == ExecutionMode.REAL else "simulated",
+                    details="Nenhum diretório de Lixeira seguro/válido identificado para esta regra.",
+                    errors_skipped=1,
+                )
+        resolved_paths = valid_paths
+
+        bytes_total, items_count = self._query_windows_recycle_bin()
+
+        if mode == ExecutionMode.DRY_RUN:
+            details = (
+                f"Simulação (Dry-Run): {items_count} itens na Lixeira do Windows "
+                f"({format_bytes(bytes_total)} recuperáveis)."
+                if items_count > 0
+                else "Lixeira do Windows vazia. Nenhum item pendente de esvaziamento."
+            )
+            return AutonomousCleanupEntry(
+                id=rule.id,
+                name=rule.name,
+                category=rule.category,
+                target_paths=resolved_paths,
+                bytes_freed=bytes_total,
+                files_removed=items_count,
+                status="simulated",
+                details=details,
+                errors_skipped=0,
+            )
+
+        # Modo REAL
+        success = False
+        # 1. Invocação nativa da API Shell32:
+        # Flag 7 = SHERB_NOCONFIRMATION (1) | SHERB_NOPROGRESSUI (2) | SHERB_NOSOUND (4)
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                res = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, 7)
+                if res == 0:
+                    success = True
+            except Exception:
+                pass
+
+        # 2. Fallback PowerShell
+        if not success:
+            try:
+                cmd = "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"
+                res = subprocess.run(
+                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
+                )
+                if res.returncode == 0:
+                    success = True
+            except Exception:
+                pass
+
+        files_removed = items_count if (success or items_count > 0) else 0
+        bytes_freed = bytes_total if (success or items_count > 0) else 0
+
+        if files_removed > 0:
+            details = (
+                f"Lixeira do Windows esvaziada com sucesso: {files_removed} itens removidos "
+                f"({format_bytes(bytes_freed)} liberados)."
+            )
+        elif items_count == 0:
+            details = "Lixeira do Windows já estava vazia. Nenhum item a remover."
+        else:
+            details = f"Comando de esvaziamento da Lixeira concluído com status: {'sucesso' if success else 'parcial'}."
+
+        return AutonomousCleanupEntry(
+            id=rule.id,
+            name=rule.name,
+            category=rule.category,
+            target_paths=resolved_paths,
+            bytes_freed=bytes_freed,
+            files_removed=files_removed,
+            status="cleaned",
+            details=details,
+            errors_skipped=0 if success else 1,
+        )
+
+    def _execute_trash_rule(
+        self, rule: AutonomousCleanupRule, mode: ExecutionMode
+    ) -> AutonomousCleanupEntry:
+        """Desvia para o handler nativo de Lixeira do macOS ou Windows."""
+        is_macos = rule.os_platform == "macos" or (sys.platform == "darwin" and rule.os_platform != "windows")
+        if is_macos:
+            return self._execute_macos_trash(rule, mode)
+        else:
+            return self._execute_windows_trash(rule, mode)
 
     def execute_rule(
         self,
         rule: AutonomousCleanupRule,
         mode: ExecutionMode,
     ) -> AutonomousCleanupEntry:
+        if self._is_trash_rule(rule):
+            return self._execute_trash_rule(rule, mode)
+
         total_bytes = 0
         total_files = 0
         total_errors = 0

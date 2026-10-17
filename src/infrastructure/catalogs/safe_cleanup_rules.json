@@ -94,6 +94,18 @@
       "risk_level": "safe"
     },
     {
+      "id": "win_trash",
+      "name": "Esvaziar Lixeira do Sistema (Recycle Bin)",
+      "category": "trash",
+      "os_platform": "windows",
+      "description": "Esvazia a Lixeira do Windows em todos os discos via API nativa Shell32.",
+      "target_paths": [
+        "$Recycle.Bin"
+      ],
+      "default_enabled": false,
+      "risk_level": "low"
+    },
+    {
       "id": "mac_system_temp",
       "name": "Temporários e Logs de Usuário (~/Library/Logs & /tmp)",
       "category": "system_temp",
