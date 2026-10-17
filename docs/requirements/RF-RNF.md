@@ -164,6 +164,17 @@ Este documento define o escopo funcional, critérios de aceite e restrições n�
 
 ---
 
+### RF-12: Esvaziamento Nativo da Lixeira e Deleção Resiliente de Arquivos Read-Only / Bloqueados
+- **Descrição:** Garantir que o esvaziamento da Lixeira (macOS e Windows) e a limpeza de pastas órfãs/caches ocorra com sucesso mesmo na presença de proteções de sistema (TCC do macOS), atributos somente leitura (`readonly`) ou flags de arquivo imutáveis (`uchg`).
+- **Critérios de Aceite:**
+  1. **Esvaziamento Nativo da Lixeira no macOS:** A regra `mac_trash` deve utilizar a API oficial do Finder via AppleScript (`tell application "Finder" to empty trash`) para transpor a restrição de TCC (`PermissionError: [Errno 1] Operation not permitted`), complementado por rotina de limpeza de flags (`chflags -R nouchg ~/.Trash/*`) e remoção direta.
+  2. **Esvaziamento Nativo da Lixeira no Windows:** A regra de lixeira deve utilizar a API Win32 nativa `SHEmptyRecycleBinW` da `shell32.dll` (ou PowerShell `Clear-RecycleBin -Force -ErrorAction SilentlyContinue`) para garantir que todos os arquivos sejam removidos e a interface do Windows Explorer atualizada.
+  3. **Deleção Resiliente de Arquivos e Pastas com Read-Only:** Implementar handler de remoção forçada em `_clean_directory_contents` e `clean_specific_paths`. Se `os.remove`, `os.rmdir` ou `shutil.rmtree` falharem por falta de permissão de escrita, o sistema deve automaticamente adicionar permissão de escrita (`os.chmod(path, stat.S_IWRITE | stat.S_IWUSR)`) e tentar a exclusão novamente antes de contabilizar erro.
+  4. **Suporte a Simulação (Dry-Run):** Em modo `DRY_RUN`, consultar o número de itens na lixeira via AppleScript (macOS) ou WMI/Shell32 (Windows) e reportar o volume recuperável sem esvaziar o conteúdo real.
+  5. **Auditoria e Logs:** Registrar detalhadamente na saída do console e no relatório HTML quantos arquivos foram removidos com sucesso da lixeira e de cada diretório de cache.
+
+---
+
 ## 2. Requisitos Não-Funcionais (RNF)
 
 ### RNF-01: Política Estrita Zero-Network & Zero-Telemetry (Privacidade Absoluta)

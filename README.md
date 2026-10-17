@@ -139,7 +139,7 @@ python3 main.py --dry-run --headless --os windows --preset advanced
 
 ## 🧪 Testes Automatizados e Qualidade
 
-O projeto conta com uma suíte de 17 testes automatizados cobrindo Domínio, Catálogos, Algoritmo de 5 Camadas, Limpeza Segura, Reversibilidade (`Undo`), Drill-down de Subpastas, Reanálise On-Demand, Empacotamento PyInstaller Standalone, Scripts de Bootstrap Oneliner, Proteção contra Path Traversal e Auditoria Estática Zero-Network:
+O projeto conta com uma suíte de 24 testes automatizados cobrindo Domínio, Catálogos, Algoritmo de 5 Camadas, Limpeza Segura, Esvaziamento Nativo da Lixeira (macOS AppleScript & Windows Shell32), Deleção Resiliente de Arquivos Readonly e Imutáveis, Reversibilidade (`Undo`), Drill-down de Subpastas, Reanálise On-Demand, Empacotamento PyInstaller Standalone, Scripts de Bootstrap Oneliner, Proteção contra Path Traversal e Auditoria Estática Zero-Network:
 
 ```bash
 python3 -m unittest discover -s tests -v
