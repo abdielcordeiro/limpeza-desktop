@@ -88,4 +88,20 @@ Este documento registra as decisões arquiteturais críticas do projeto **Limpez
   - Preservação estrita da política Zero-Network (o binário opera 100% offline em `127.0.0.1`).
   - O código continua totalmente executável em modo interpretado padrão (`python3 main.py`) sem quebrar a experiência de desenvolvimento local.
 
+---
+
+## ADR-007: Esvaziamento Nativo da Lixeira Multiplataforma (Finder AppleScript no macOS & Shell32 no Windows) com Deleção Resiliente de Readonly
+- **Status:** Aceito
+- **Data:** 2026-10-17
+- **Contexto:**
+  No macOS, a pasta `~/.Trash` é protegida pelo subsistema de segurança TCC (Transparency, Consent, and Control) da Apple. Chamadas POSIX tradicionais em Python (`os.listdir`, `os.walk`, `os.remove`) geram silenciosamente ou explicitamente `PermissionError: [Errno 1] Operation not permitted`, impedindo o esvaziamento da Lixeira. Adicionalmente, arquivos de caches e pacotes com atributo somente-leitura (`readonly`) ou flags de imutabilidade (`uchg`) causavam falhas silenciosas em `shutil.rmtree` e `os.remove`.
+- **Decisão:**
+  1. **Esvaziamento Nativo no macOS:** Invocar a API nativa do Finder via AppleScript (`tell application "Finder" to empty trash`) com fallback de shell para remoção forçada de flags (`chflags -R nouchg ~/.Trash/*`). Para contagem em Dry-Run, consultar o Finder (`tell application "Finder" to count every item of trash`).
+  2. **Esvaziamento Nativo no Windows:** Invocar a API Win32 `SHEmptyRecycleBinW` da `shell32.dll` (com flags `SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND`) ou fallback para PowerShell `Clear-RecycleBin -Force`.
+  3. **Deleção Resiliente de Arquivos Readonly:** Equipar `_clean_directory_contents` e `clean_specific_paths` com um handler de desbloqueio automático: ao encontrar `PermissionError`, aplicar permissão de escrita via `os.chmod(path, stat.S_IWRITE | stat.S_IWUSR)` (e no macOS desativar `uchg`), tentando a exclusão uma segunda vez antes de registrar falha.
+- **Consequências:**
+  - A Lixeira passa a ser 100% esvaziada em qualquer versão moderna do macOS sem exigir concessão manual de Full Disk Access pelo usuário.
+  - Arquivos e pastas residuais de caches bloqueados ou somente-leitura são efetivamente removidos do disco.
+
+
 

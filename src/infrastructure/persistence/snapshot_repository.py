@@ -16,7 +16,6 @@ class SnapshotRepository(ISnapshotRepositoryPort):
             project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
             snapshots_dir = os.path.join(project_root, "outputs", "snapshots")
         self.snapshots_dir = snapshots_dir
-        os.makedirs(self.snapshots_dir, exist_ok=True)
 
     @staticmethod
     def _sanitize_id(snapshot_id: str) -> str:

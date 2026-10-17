@@ -6,6 +6,7 @@ import unittest
 
 from src.domain.value_objects import ExecutionMode, OSPlatform
 from src.application.orchestrator import OrchestratorService
+from src.infrastructure.persistence.snapshot_repository import SnapshotRepository
 from src.presentation.reporters.html_reporter import generate_html_report
 from src.presentation.window.local_server import LocalControlPanelServer
 
@@ -14,16 +15,17 @@ class TestReportAndLocalServer(unittest.TestCase):
     """Valida a geração do relatório HTML de 7 abas e as rotas da API local."""
 
     def test_generate_html_report_and_local_api_routes(self) -> None:
-        orchestrator = OrchestratorService()
-        plan = orchestrator.build_default_plan(
-            os_platform=OSPlatform.detect_current(),
-            mode=ExecutionMode.DRY_RUN,
-            preset="minimal",
-        )
-        plan.run_disk_scan = False
-        report = orchestrator.execute_plan(plan)
-
         with tempfile.TemporaryDirectory() as tmpdir:
+            snap_repo = SnapshotRepository(snapshots_dir=os.path.join(tmpdir, "snapshots"))
+            orchestrator = OrchestratorService(snapshot_repo=snap_repo)
+            plan = orchestrator.build_default_plan(
+                os_platform=OSPlatform.detect_current(),
+                mode=ExecutionMode.DRY_RUN,
+                preset="minimal",
+            )
+            plan.run_disk_scan = False
+            report = orchestrator.execute_plan(plan)
+
             out_html = os.path.join(tmpdir, "relatorio_limpeza_disco.html")
             generated_path = generate_html_report(report, output_filename=out_html)
             self.assertTrue(os.path.exists(generated_path))
