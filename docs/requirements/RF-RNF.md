@@ -173,6 +173,60 @@ Este documento define o escopo funcional, critérios de aceite e restrições n�
   4. **Suporte a Simulação (Dry-Run):** Em modo `DRY_RUN`, consultar o número de itens na lixeira via AppleScript (macOS) ou WMI/Shell32 (Windows) e reportar o volume recuperável sem esvaziar o conteúdo real.
   5. **Auditoria e Logs:** Registrar detalhadamente na saída do console e no relatório HTML quantos arquivos foram removidos com sucesso da lixeira e de cada diretório de cache.
 
+
+---
+
+### RF-13: Diagnóstico e Monitoramento de Saúde de Hardware e Periféricos (SSD/HDD S.M.A.R.T., RAM, GPU e Bateria)
+- **Descrição:** Coletar métricas essenciais de integridade física e operacional dos principais componentes e periféricos do computador (Storage SSD/HDD, Memória RAM, Placa de Vídeo / GPU, Processador e Bateria de Laptops) utilizando ferramentas nativas do sistema operacional (WMI/PowerShell no Windows e sysctl/system_profiler/diskutil no macOS), sem dependências pesadas em C++ ou bibliotecas proprietárias de telemetria.
+- **Critérios de Aceite:**
+  1. **Saúde de SSD / HDD:**
+     - **Windows:** Detectar tipo de mídia (`MediaType`: SSD, HDD, NVMe), status de integridade (`HealthStatus`: Healthy, Warning, Unhealthy), percentual de desgaste (`Wear` / vida útil restante se disponível via `Get-StorageReliabilityCounter`), horas ligado (`PowerOnHours`), temperatura operacional e previsão de falha S.M.A.R.T. (`MSStorageDriver_FailurePredictStatus`).
+     - **macOS:** Consultar `system_profiler SPStorageDataType` / `SPNVMeDataType` / `diskutil info` para obter status S.M.A.R.T. (`Verified`, `Failing`, `Not Supported`), suporte a TRIM (`TRIM Support: Yes/No`), protocolo de conexão (Apple Fabric / NVMe / SATA) e capacidade total/livre.
+  2. **Diagnóstico de Memória RAM & Pressão de Swap:**
+     - **Windows:** Medir percentual de carga de memória (`dwMemoryLoad`), RAM física total vs livre e relação de tamanho do arquivo de paginação (`TotalPageFile` vs `AvailPageFile`). Emitir alerta se a carga de RAM estiver acima de 85% e o arquivo de paginação estiver sob uso intenso (risco de lentidão e desgaste acelerado do SSD por swap contínuo).
+     - **macOS:** Inspecionar `vm_stat` e `sysctl` para obter RAM total, RAM ativa/inativa/wired, memória comprimida e uso de swap (`sysctl vm.swapusage`). Avaliar nível de pressão de memória (`Normal`, `Warning`, `Critical`).
+  3. **Diagnóstico de Placa de Vídeo (GPU):**
+     - **Windows:** Identificar adaptadores gráficos via WMI (`Win32_VideoController`), extraindo Modelo/Fabricante (NVIDIA, AMD, Intel), VRAM dedicada, versão do driver instalada e status operacional. Se `nvidia-smi` estiver no PATH, extrair temperatura da GPU, uso atual de VRAM e consumo em watts.
+     - **macOS:** Consultar `system_profiler SPDisplaysDataType` identificando o modelo da GPU / SoC Apple Silicon (ex: Apple M1/M2/M3/M4 Max/Pro, AMD Radeon, Intel Iris), núcleos de GPU e suporte à API Metal.
+  4. **Diagnóstico de Bateria e Alimentação (Laptops):**
+     - **Windows:** Consultar `Win32_Battery` ou gerar dados de capacidade (`FullChargeCapacity` vs `DesignCapacity`) para calcular a saúde percentual da bateria (`Health = FullCharge / Design * 100`) e estimativa de tempo restante.
+     - **macOS:** Consultar `system_profiler SPPowerDataType` obtendo contagem de ciclos (`Cycle Count`), condição da bateria (`Normal`, `Service Recommended`), capacidade máxima percentual e estado de carregamento.
+  5. **Motor de Alertas Preventivos e Ações Recomendadas:**
+     - Alerta de Falha Iminente de Disco (S.M.A.R.T. com Warning/Failing): recomendação imediata de backup dos dados pessoais.
+     - Alerta de RAM Crítica / Swap Thrashing: recomendação de encerramento de processos em background ou aumento de memória física.
+     - Alerta de Bateria Degradada (> 800-1000 ciclos ou saúde < 80%): recomendação de recalibração ou substituição para evitar estufamento.
+     - Alerta de TRIM Inativo em SSDs externos/secundários.
+
+---
+
+### RF-14: Otimização Inteligente de Armazenamento (Desfragmentação HDD vs TRIM SSD no Windows & Otimização APFS no macOS) com Guardrails Anti-Degradação de NVMe
+- **Descrição:** Oferecer um recurso de ajuste e manutenção preventiva dos discos do usuário durante a rotina de limpeza, diferenciando estritamente unidades de estado sólido (SSD/NVMe) de discos rígidos magnéticos tradicionais (HDD) para maximizar desempenho sem degradar a vida útil da memória flash.
+- **Critérios de Aceite:**
+  1. **Guardrails Anti-Degradação de 4 Camadas para Identificação de NVMe/SSD:**
+     - **Camada 1 (PowerShell Storage API):** `Get-PhysicalDisk` inspecionando `MediaType` (SSD, HDD, SCM) e `BusType` (NVMe, SATA, USB).
+     - **Camada 2 (WMI/CIM Fallback & SeekPenalty):** Consulta a `MSFT_PhysicalDisk` e `Win32_DiskDrive`. Avaliação de `SpindleSpeed` (RPM = 0 indica SSD; 5400/7200 RPM indica HDD) e `SeekPenalty` (`SeekPenalty == False` comprova ausência de cabeça mecânica, confirmando SSD/NVMe).
+     - **Camada 3 (Defrag Assessment Pre-check):** Execução de `defrag <drive>: /A` onde o motor nativo do Windows sinaliza a recomendação do volume (Retrim vs Defrag).
+     - **Camada 4 (Fail-Safe Default Absoluto):** Se qualquer camada falhar, retornar nulo ou houver discrepância entre fontes de dados, o sistema **obrigatoriamente assume que a unidade é um SSD/NVMe**, bloqueando de forma irreversível a desfragmentação tradicional de blocos e liberando apenas TRIM.
+  2. **Validação e Confirmação Explícita com o Usuário (Human-in-the-Loop Safety):**
+     - A interface gráfica e a CLI devem listar explicitamente cada partição com o tipo de mídia identificado (ex: `C: [NVMe SSD - Samsung 980 PRO 1TB] - Otimização Segura: TRIM`).
+     - **Trava de Segurança para HDD:** Caso uma partição seja identificada como HDD mecânico e a desfragmentação tradicional seja solicitada, o sistema deve **obrigatoriamente solicitar confirmação explícita ao usuário** (via diálogo na Janela/Dashboard ou prompt no terminal):
+       > *"O volume [X:] foi identificado como DISCO RÍGIDO MECÂNICO (HDD). Desfragmentar uma unidade SSD ou NVMe reduz desnecessariamente sua vida útil. Confirma que este disco é de fato um HDD mecânico e NÃO um SSD/NVMe?"*
+     - Caso o usuário responda Negativo ou assinale que se trata de um SSD, a desfragmentação de blocos é cancelada imediatamente e a unidade é reclassificada para tratamento de SSD (apenas TRIM).
+  3. **Execução Diferenciada no Windows:**
+     - **Se HDD Confirmado:** Executar análise de taxa de fragmentação (`defrag.exe <drive>: /A` ou `Optimize-Volume -DriveLetter <drive> -Analyze`). Se fragmentação > 5%, executar desfragmentação tradicional (`Optimize-Volume -DriveLetter <drive> -Defrag` ou `defrag.exe <drive>: /U /V`).
+     - **Se SSD / NVMe:** **PROIBIR desfragmentação tradicional**. Executar exclusivamente **Retrim / TRIM e Consolidação de Slabs** (`Optimize-Volume -DriveLetter <drive> -ReTrim` ou `defrag.exe <drive>: /L`), informando ao controlador SSD quais blocos liberados podem ser limpos internamente pelo Garbage Collector.
+  4. **Manutenção Preventiva de Disco no macOS (APFS & HFS+):**
+     - No macOS moderno com APFS (Apple Silicon e Macs com SSD), desfragmentação manual não existe por projeto arquitetural do APFS (Copy-on-Write com gerenciamento dinâmico).
+     - O recurso de "Ajuste de Disco" no macOS deve executar:
+       - Verificação de consistência e integridade das estruturas de catálogo APFS via `diskutil verifyVolume /`.
+       - Diagnóstico de suporte a TRIM (`TRIM Support`) para garantir que o kernel está notificando o SSD.
+       - Consolidação e expurgo de snapshots locais antigos (`tmutil thinlocalsnapshots / <bytes> 4`) para liberar espaço retido por blocos COW órfãos.
+  5. **Segurança Operacional e Idempotência:**
+     - Operações de otimização de disco devem rodar com prioridade baixa de I/O para não congelar o sistema do usuário.
+     - Se o computador for um laptop rodando exclusivamente em bateria com menos de 20% de carga, a otimização de disco deve ser pausada/alertada para evitar desligamento abrupto no meio de I/O intensivo.
+  6. **Modo Simulação (Dry-Run):**
+     - Em modo `dry-run`, o sistema apenas analisa a taxa de fragmentação (Windows HDD), consulta status TRIM e integridade do volume APFS (macOS) e relata o que seria executado sem acionar I/O destrutivo.
+
 ---
 
 ## 2. Requisitos Não-Funcionais (RNF)
