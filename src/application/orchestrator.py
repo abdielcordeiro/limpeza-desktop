@@ -9,6 +9,8 @@ from src.domain.entities import (
     StateSnapshot,
     TweakExecutionRecord,
     AutonomousCleanupEntry,
+    HardwareHealthInfo,
+    StorageOptimizationResult,
 )
 from src.domain.ports import (
     ISystemProbePort,
@@ -18,6 +20,8 @@ from src.domain.ports import (
     ISystemTweakPort,
     ICloudAndPackagesPort,
     ISnapshotRepositoryPort,
+    IHardwareProbePort,
+    IStorageOptimizationPort,
 )
 from src.domain.value_objects import OSPlatform, ExecutionMode, ScanScope, format_bytes
 from src.application.dtos import ExecutionPlanDTO
@@ -26,11 +30,15 @@ from src.infrastructure.windows.platform_adapter import (
     WindowsSystemProbeAdapter,
     WindowsActiveAppsAdapter,
     WindowsCloudAndPackagesAdapter,
+    WindowsHardwareProbeAdapter,
+    WindowsStorageOptimizationAdapter,
 )
 from src.infrastructure.macos.platform_adapter import (
     MacOSSystemProbeAdapter,
     MacOSActiveAppsAdapter,
     MacOSCloudAndPackagesAdapter,
+    MacOSHardwareProbeAdapter,
+    MacOSStorageOptimizationAdapter,
 )
 from src.infrastructure.filesystem.autonomous_cleaner import AutonomousCleanerAdapter
 from src.infrastructure.filesystem.disk_scanner import DiskScannerAdapter
@@ -42,7 +50,7 @@ ProgressCallback = Callable[[int, str, str], None]
 
 
 class OrchestratorService:
-    """Coordena os módulos de System Probe, Limpeza Autônoma, Scanner 5 Camadas, Tweaks e Undo."""
+    """Coordena os módulos de System Probe, Limpeza Autônoma, Scanner 5 Camadas, Tweaks, Hardware e Undo."""
 
     def __init__(
         self,
@@ -50,14 +58,22 @@ class OrchestratorService:
         scanner: Optional[IDiskScannerPort] = None,
         snapshot_repo: Optional[ISnapshotRepositoryPort] = None,
         tweak_adapter: Optional[ISystemTweakPort] = None,
+        win_hw: Optional[IHardwareProbePort] = None,
+        win_storage: Optional[IStorageOptimizationPort] = None,
+        mac_hw: Optional[IHardwareProbePort] = None,
+        mac_storage: Optional[IStorageOptimizationPort] = None,
     ) -> None:
         self.win_probe = WindowsSystemProbeAdapter()
         self.win_active = WindowsActiveAppsAdapter()
         self.win_cloud = WindowsCloudAndPackagesAdapter()
+        self.win_hw = win_hw or WindowsHardwareProbeAdapter()
+        self.win_storage = win_storage or WindowsStorageOptimizationAdapter()
 
         self.mac_probe = MacOSSystemProbeAdapter()
         self.mac_active = MacOSActiveAppsAdapter()
         self.mac_cloud = MacOSCloudAndPackagesAdapter()
+        self.mac_hw = mac_hw or MacOSHardwareProbeAdapter()
+        self.mac_storage = mac_storage or MacOSStorageOptimizationAdapter()
 
         host_probe = (
             self.win_probe
@@ -73,19 +89,26 @@ class OrchestratorService:
 
     def _get_os_ports(
         self, os_platform: OSPlatform
-    ) -> tuple[ISystemProbePort, IActiveAppsPort, ICloudAndPackagesPort]:
+    ) -> tuple[
+        ISystemProbePort,
+        IActiveAppsPort,
+        ICloudAndPackagesPort,
+        IHardwareProbePort,
+        IStorageOptimizationPort,
+    ]:
         if os_platform == OSPlatform.WINDOWS:
-            return self.win_probe, self.win_active, self.win_cloud
-        return self.mac_probe, self.mac_active, self.mac_cloud
+            return self.win_probe, self.win_active, self.win_cloud, self.win_hw, self.win_storage
+        return self.mac_probe, self.mac_active, self.mac_cloud, self.mac_hw, self.mac_storage
 
     def get_initial_context(self, os_platform: Optional[OSPlatform] = None) -> Dict[str, Any]:
         """Retorna dados iniciais do sistema para popular a Janela de Configuração."""
         target_os = os_platform or OSPlatform.detect_current()
-        probe, _, _ = self._get_os_ports(target_os)
+        probe, _, _, hw_port, _ = self._get_os_ports(target_os)
         partitions = probe.get_partitions()
         rules = self.cleaner.get_cleanup_rules(target_os)
         tweaks = self.tweak_adapter.list_available_tweaks(target_os)
         snapshots = self.snapshot_repo.list_snapshots()
+        hw_health = hw_port.get_hardware_health()
 
         return {
             "detected_os": OSPlatform.detect_current().value,
@@ -97,6 +120,7 @@ class OrchestratorService:
             "cleanup_rules": [r.to_dict() for r in rules],
             "tweaks": [t.to_dict() for t in tweaks],
             "snapshots": [s.to_dict() for s in snapshots],
+            "hardware_health": hw_health.to_dict(),
         }
 
     def build_default_plan(
@@ -193,7 +217,7 @@ class OrchestratorService:
                 progress_cb(pct, step, timestamped)
 
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        probe, active_port, cloud_port = self._get_os_ports(plan.os_platform)
+        probe, active_port, cloud_port, hw_port, storage_opt_port = self._get_os_ports(plan.os_platform)
 
         emit(
             5,
@@ -203,10 +227,14 @@ class OrchestratorService:
         partitions = probe.get_partitions()
         all_drives = [p.mount_point for p in partitions]
         emit(
-            12,
+            10,
             "Mapeando Sistema e Partições",
             f"Partições/Volumes detectados: {len(partitions)} ({', '.join(p.drive_letter for p in partitions)})",
         )
+
+        emit(14, "Diagnóstico de Saúde de Hardware", "Coletando telemetria nativa de SSD/NVMe (S.M.A.R.T.), RAM/Swap, GPU e Bateria...")
+        hardware_health = hw_port.get_hardware_health()
+        emit(18, "Diagnóstico de Hardware", f"Status geral do hardware: {hardware_health.overall_status} ({len(hardware_health.critical_alerts)} alertas).")
 
         # 1. Motor de Limpeza Autônoma
         autonomous_entries: List[AutonomousCleanupEntry] = []
@@ -389,6 +417,8 @@ class OrchestratorService:
             outdated_apps=outdated_apps,
             active_indicators_count=active_indicators_count,
             execution_logs=logs,
+            hardware_health=hardware_health,
+            storage_optimizations=[],
         )
         self.last_report = report
         return report
@@ -466,3 +496,32 @@ class OrchestratorService:
             records.append(rec)
 
         return records
+
+    def diagnose_hardware_health(self, os_platform: Optional[OSPlatform] = None) -> HardwareHealthInfo:
+        """Executa diagnóstico de saúde de hardware (Discos, RAM, GPU, Bateria) sob demanda."""
+        target_os = os_platform or (self.last_plan.os_platform if self.last_plan else OSPlatform.detect_current())
+        _, _, _, hw_port, _ = self._get_os_ports(target_os)
+        return hw_port.get_hardware_health()
+
+    def optimize_storage_volume(
+        self,
+        drive: str,
+        media_type: Optional[str] = None,
+        user_confirmed: bool = False,
+        mode: ExecutionMode = ExecutionMode.REAL,
+    ) -> StorageOptimizationResult:
+        """
+        Executa otimização inteligente de storage aplicando estritamente os
+        Guardrails de 4 Camadas para proteção de NVMe/SSD e Human-in-the-Loop Safety para HDD.
+        """
+        target_os = self.last_plan.os_platform if self.last_plan else OSPlatform.detect_current()
+        _, _, _, _, storage_opt_port = self._get_os_ports(target_os)
+        result = storage_opt_port.optimize_volume(
+            drive=drive,
+            media_type=media_type,
+            user_confirmed=user_confirmed,
+            mode=mode,
+        )
+        if self.last_report:
+            self.last_report.storage_optimizations.append(result)
+        return result

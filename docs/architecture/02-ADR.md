@@ -103,5 +103,33 @@ Este documento registra as decisões arquiteturais críticas do projeto **Limpez
   - A Lixeira passa a ser 100% esvaziada em qualquer versão moderna do macOS sem exigir concessão manual de Full Disk Access pelo usuário.
   - Arquivos e pastas residuais de caches bloqueados ou somente-leitura são efetivamente removidos do disco.
 
+---
+
+## ADR-008: Diagnóstico Nativo Zero-Dependency de Hardware e Otimização Diferenciada de Disco (HDD Defrag vs SSD TRIM / APFS Maintenance)
+- **Status:** Aceito
+- **Data:** 2026-10-18
+- **Contexto:**
+  O sistema já analisa o consumo lógico de espaço em disco e aplica otimizações de sistema operacional, mas não oferecia visibilidade da saúde física e operacional dos componentes de hardware (Storage SSD/HDD, Memória RAM, GPU e Bateria). Além disso, usuários de Windows frequentemente buscam a "desfragmentação de disco" como ferramenta de manutenção, sem saber que desfragmentar um SSD moderno é prejudicial (desgaste desnecessário de ciclos de gravação nas células NAND) e que no macOS o sistema de arquivos APFS possui arquitetura completamente diferente (Copy-On-Write sem desfragmentação manual).
+- **Decisão:**
+  1. **Coleta de Métricas de Hardware 100% Nativa (Zero Network & Zero Dependências C++):**
+     - **Windows:** Utilizar chamadas de sistema Win32 via `ctypes` (`GlobalMemoryStatusEx`) e comandos nativos PowerShell/CIM (`Get-PhysicalDisk`, `Get-StorageReliabilityCounter`, `Win32_VideoController`, `Win32_Battery`), garantindo execução sem requerer bibliotecas C++ externas compiladas.
+     - **macOS:** Utilizar chamadas POSIX/Darwin nativas (`sysctl`, `vm_stat`) e utilitários integrados do sistema (`system_profiler -json SPStorageDataType SPDisplaysDataType SPPowerDataType`, `diskutil info`), que retornam estruturas JSON prontas para parsing seguro.
+  2. **Estratégia de Otimização Diferenciada de Disco & Guardrails Anti-Degradação de NVMe:**
+     - **Guardrails de Detecção (4 Camadas):**
+       - 1ª Camada: `Get-PhysicalDisk` (`MediaType` e `BusType: NVMe`).
+       - 2ª Camada: WMI `MSFT_PhysicalDisk` (`SeekPenalty == False` e `SpindleSpeed == 0` para SSD).
+       - 3ª Camada: Pré-checagem nativa do Windows (`defrag /A`).
+       - 4ª Camada (Fail-Safe Default): Em qualquer dúvida, ambiguidade ou falha de detecção, o sistema **assume obrigatoriamente que a unidade é SSD/NVMe**.
+     - **Confirmação Obrigatória com Usuário (Human-in-the-Loop):** Se um disco for classificado como HDD mecânico e a desfragmentação de clusters for solicitada, o sistema exibe alerta formal com o modelo do disco e exige confirmação explícita do usuário de que se trata realmente de um disco mecânico. Se o usuário negar ou indicar que é SSD, a desfragmentação de blocos é cancelada imediatamente.
+     - **Windows HDD Confirmado:** Análise de taxa de fragmentação e desfragmentação tradicional de clusters (`Optimize-Volume -DriveLetter <X> -Defrag` ou `defrag.exe <X>: /U /V`).
+     - **Windows SSD / NVMe:** **Proibição estrita de defrag tradicional**. Execução exclusiva de **Retrim / TRIM e Consolidação de Slabs** (`Optimize-Volume -DriveLetter <X> -ReTrim` ou `defrag.exe <X>: /L`), informando ao controlador SSD os blocos liberados para o Garbage Collector.
+     - **macOS (APFS & HFS+):** Não realizar desfragmentação de blocos (incompatível com a semântica Copy-on-Write do APFS e desnecessária em memória flash). Executar manutenção de integridade de metadados (`diskutil verifyVolume /`), verificação de suporte a **TRIM** nativo e limpeza de snapshots órfãos (`tmutil thinlocalsnapshots`).
+  3. **Central de Alertas Preventivos e Recomendações Educativas:**
+     - Exibir no Dashboard HTML cards visuais com status de saúde (S.M.A.R.T. Verified/Failing, Nível de Pressão de Memória / Swap Thrashing, Saúde e Ciclos da Bateria, Status de TRIM e Temperatura/VRAM de GPU), acompanhados de diagnósticos acionáveis para o usuário.
+- **Consequências:**
+  - Usuários recebem orientações educativas e precisas sobre a conservação física do computador, com risco zero de desgaste indevido ou degradação de SSDs/NVMes graças aos guardrails de 4 camadas e validação com o usuário.
+  - Mantém adesão estrita ao **RNF-01 (Zero-Network Policy)** e **RNF-03 (Zero Dependências Pesadas)**.
+
+
 
 

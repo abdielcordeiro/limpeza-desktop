@@ -73,6 +73,7 @@ flowchart TB
             ModScanner["📦 Módulo: Deep Scanner & Orphans<br/>(5 Camadas Active Apps, Órfãos, Top Arquivos e Apps Grandes)"]
             ModOptimizer["📦 Módulo: System Optimizer<br/>(Motor Declarativo WinUtil Sanitizado & macOS Tweaks)"]
             ModCloud["📦 Módulo: Cloud & Packages<br/>(Diagnóstico OneDrive / iCloud & Apps)"]
+            ModHardware["📦 Módulo: Hardware Health & Disk Optimizer<br/>(S.M.A.R.T., RAM/Swap, GPU, Bateria, Defrag HDD vs TRIM SSD / APFS)"]
         end
 
         Catalogs["📄 Catálogos Declarativos Offline<br/>(catalogs/windows_tweaks.json, catalogs/macos_tweaks.json)"]
@@ -85,6 +86,7 @@ flowchart TB
     ModOptimizer --> Catalogs
     ModOptimizer --> Snapshots
     ModCleaner --> Snapshots
+    ModHardware --> Snapshots
     CoreApp --> HTMLReport
 ```
 
@@ -106,18 +108,20 @@ flowchart LR
         UC_Scan["AnalyzeDiskAndOrphansUseCase"]
         UC_Opt["ApplySystemTweaksUseCase"]
         UC_Undo["RevertSystemTweaksUseCase"]
+        UC_Hw["DiagnoseHardwareHealthUseCase"]
+        UC_DskOpt["OptimizeStorageVolumeUseCase"]
     end
 
     subgraph Domain["Camada de Domínio (Pura - Sem Dependências Externas)"]
-        Entities["Entities: Partition, CleanableItem,InstalledApp, SystemTweak, ExecutionReport"]
-        ValueObjects["Value Objects: RiskLevel, OSPlatform, ByteSize, TweakAction"]
-        DomainEvents["Domain Events: SpaceFreedEvent, TweakAppliedEvent, SnapshotCreatedEvent"]
-        Ports["Interfaces de Porta (Ports):<br/>IOSProbePort, IActiveAppsPort, IFileSystemCleanerPort, ISystemTweakPort, ISnapshotRepositoryPort"]
+        Entities["Entities: Partition, CleanableItem, InstalledApp, SystemTweak, HardwareHealthInfo, StorageOptimizationResult, ExecutionReport"]
+        ValueObjects["Value Objects: RiskLevel, OSPlatform, ByteSize, MediaType, TweakAction"]
+        DomainEvents["Domain Events: SpaceFreedEvent, TweakAppliedEvent, StorageOptimizedEvent, SnapshotCreatedEvent"]
+        Ports["Interfaces de Porta (Ports):<br/>ISystemProbePort, IActiveAppsPort, IFileSystemCleanerPort, ISystemTweakPort, IHardwareProbePort, IStorageOptimizationPort, ISnapshotRepositoryPort"]
     end
 
     subgraph Infrastructure["Camada de Infraestrutura (Secondary Adapters)"]
-        WinAdapter["🪟 Windows Adapter<br/>(winreg, sc.exe, schtasks, powercfg, dism, cleanmgr)"]
-        MacAdapter["🍎 macOS Adapter<br/>(plistlib, defaults, launchctl, diskutil, tmutil, dscacheutil)"]
+        WinAdapter["🪟 Windows Adapter<br/>(winreg, sc.exe, schtasks, powercfg, dism, defrag, Optimize-Volume, ctypes, WMI)"]
+        MacAdapter["🍎 macOS Adapter<br/>(plistlib, defaults, launchctl, diskutil, tmutil, dscacheutil, vm_stat, system_profiler)"]
         LocalFSAdapter["📂 FileSystem & Snapshot JSON Adapter"]
     end
 
@@ -127,11 +131,15 @@ flowchart LR
     UC_Plan --> UC_Scan
     UC_Plan --> UC_Opt
     UC_Plan --> UC_Undo
+    UC_Plan --> UC_Hw
+    UC_Plan --> UC_DskOpt
 
     UC_Clean --> Ports
     UC_Scan --> Ports
     UC_Opt --> Ports
     UC_Undo --> Ports
+    UC_Hw --> Ports
+    UC_DskOpt --> Ports
 
     Ports -.->|"Implementado por"| WinAdapter
     Ports -.->|"Implementado por"| MacAdapter

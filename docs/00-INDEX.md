@@ -11,7 +11,7 @@ Bem-vindo à documentação oficial de arquitetura, requisitos e engenharia reve
 
 ### 1. Requisitos do Produto (`docs/requirements/`)
 - [**RF-RNF.md — Requisitos Funcionais e Não-Funcionais**](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/docs/requirements/RF-RNF.md)
-  - Especificação detalhada dos Requisitos Funcionais (Janela de Seleção Pré-Execução, Motor de Limpeza Autônoma Windows/macOS, Algoritmo Anti-Falsos Positivos de 5 Camadas, Scanner de Grandes Arquivos e Aplicativos, Motor de Otimização inspirado no WinUtil com Undo/Backup, Dashboard HTML Final).
+  - Especificação detalhada dos Requisitos Funcionais (Janela de Seleção Pré-Execução, Motor de Limpeza Autônoma Windows/macOS, Algoritmo Anti-Falsos Positivos de 5 Camadas, Scanner de Grandes Arquivos e Aplicativos, Motor de Otimização inspirado no WinUtil com Undo/Backup, Dashboard HTML Final, Reanálise On-Demand, Distribuição Standalone, Esvaziamento Nativo da Lixeira, Diagnóstico de Saúde de Hardware/Periféricos [RF-13] e Otimização Inteligente de Armazenamento [RF-14]).
   - Especificação dos Requisitos Não-Funcionais (Política Zero-Network / Zero-Telemetry, Idempotência e Reversibilidade, Isolamento de Privilégios, Performance de I/O e Memória).
 
 ### 2. Arquitetura e System Design (`docs/architecture/`)
@@ -24,6 +24,10 @@ Bem-vindo à documentação oficial de arquitetura, requisitos e engenharia reve
   - **ADR-002:** Transcrição Declarativa e Sanitização Zero-Network do `ChrisTitusTech/winutil`.
   - **ADR-003:** Mecanismo de Idempotência, Ponto de Restauração e Snapshot Local Reversível (`Undo`).
   - **ADR-004:** Janela de Navegação Pré-Execução e Relatório HTML Autônomo (Zero Dependências Externas).
+  - **ADR-005:** Reanálise On-Demand, Reatividade no DOM e Drill-Down Dinâmico de Subpastas.
+  - **ADR-006:** Empacotamento Autocontido (PyInstaller) e Distribuição Standalone via GitHub Releases.
+  - **ADR-007:** Esvaziamento Nativo da Lixeira Multiplataforma com Deleção Resiliente de Readonly.
+  - **ADR-008:** Diagnóstico Nativo Zero-Dependency de Hardware e Otimização Diferenciada de Disco (HDD Defrag vs SSD TRIM / APFS Maintenance).
 - [**03-WINUTIL-REVERSE-ENGINEERING-AUDIT.md — Dossiê de Engenharia Reversa e Auditoria de Privacidade do WinUtil**](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/docs/architecture/03-WINUTIL-REVERSE-ENGINEERING-AUDIT.md)
   - Mapeamento completo de todas as chaves de Registro (`HKLM`/`HKCU`), Serviços, Tarefas Agendadas e Comandos de Limpeza/Performance do `ChrisTitusTech/winutil`.
   - **Laudo de Auditoria de Segurança e Privacidade:** Identificação dos **8 pontos de comunicação externa / risco de vazamento** presentes no WinUtil original e a estratégia de bloqueio/remoção aplicada em nosso produto.

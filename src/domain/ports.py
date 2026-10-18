@@ -14,6 +14,12 @@ from .entities import (
     StateSnapshot,
     CloudDiagnosticInfo,
     OutdatedAppInfo,
+    StorageDiskHealth,
+    MemoryDiagnostics,
+    GPUInfo,
+    BatteryHealth,
+    HardwareHealthInfo,
+    StorageOptimizationResult,
 )
 from .value_objects import ExecutionMode, OSPlatform
 
@@ -152,4 +158,46 @@ class ISnapshotRepositoryPort(ABC):
 
     @abstractmethod
     def list_snapshots(self) -> List[StateSnapshot]:
+        pass
+
+
+class IHardwareProbePort(ABC):
+    """Porta para coleta de saúde física do computador (Discos, RAM/Swap, GPU e Bateria)."""
+
+    @abstractmethod
+    def get_hardware_health(self) -> HardwareHealthInfo:
+        pass
+
+    @abstractmethod
+    def get_disks_health(self) -> List[StorageDiskHealth]:
+        pass
+
+    @abstractmethod
+    def get_memory_diagnostics(self) -> MemoryDiagnostics:
+        pass
+
+    @abstractmethod
+    def get_gpu_info(self) -> List[GPUInfo]:
+        pass
+
+    @abstractmethod
+    def get_battery_health(self) -> BatteryHealth:
+        pass
+
+
+class IStorageOptimizationPort(ABC):
+    """Porta para análise e otimização diferenciada de storage (TRIM SSD vs Defrag HDD / APFS)."""
+
+    @abstractmethod
+    def analyze_volume(self, drive: str) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    def optimize_volume(
+        self,
+        drive: str,
+        media_type: Optional[str] = None,
+        user_confirmed: bool = False,
+        mode: ExecutionMode = ExecutionMode.DRY_RUN,
+    ) -> StorageOptimizationResult:
         pass

@@ -615,6 +615,38 @@ class LocalControlPanelServer:
                     },
                 )
 
+            if parsed.path == "/api/optimize-disk":
+                raw_drive = payload.get("drive", "C:")
+                drive = str(raw_drive).strip() if raw_drive else "C:"
+                if len(drive) > 128:
+                    drive = drive[:128]
+                confirm_hdd = bool(payload.get("confirm_hdd", False))
+                mode_str = str(payload.get("mode", "real")).lower()
+                mode = ExecutionMode.REAL if mode_str == "real" else ExecutionMode.DRY_RUN
+                media_type = payload.get("media_type")
+                result = self.orchestrator.optimize_storage_volume(
+                    drive=drive,
+                    media_type=media_type,
+                    user_confirmed=confirm_hdd,
+                    mode=mode,
+                )
+                if self.orchestrator.last_report:
+                    generate_html_report(
+                        self.orchestrator.last_report,
+                        output_filename=self.output_report_path,
+                    )
+                return (
+                    200,
+                    "application/json; charset=utf-8",
+                    {
+                        "status": "ok",
+                        "success": result.success,
+                        "result": result.to_dict(),
+                        "message": result.message,
+                        "action_taken": result.action_taken,
+                    },
+                )
+
             if parsed.path == "/api/undo":
                 raw_snap_id = payload.get("snapshot_id", "latest")
                 snap_id = str(raw_snap_id) if isinstance(raw_snap_id, str) else "latest"
