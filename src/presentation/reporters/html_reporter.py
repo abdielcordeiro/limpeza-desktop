@@ -233,6 +233,46 @@ def generate_html_report(
         .badge.warning {{ background: rgba(245, 158, 11, 0.15); color: var(--warning-color); border: 1px solid rgba(245, 158, 11, 0.35); }}
         .badge.danger {{ background: rgba(239, 68, 68, 0.15); color: var(--danger-color); border: 1px solid rgba(239, 68, 68, 0.35); }}
         .badge.purple {{ background: rgba(168, 85, 247, 0.15); color: var(--purple-color); border: 1px solid rgba(168, 85, 247, 0.35); }}
+        .badge.info {{ background: rgba(56, 189, 248, 0.15); color: var(--accent-primary); border: 1px solid rgba(56, 189, 248, 0.35); }}
+
+        .hw-grid-2 {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+            gap: 1.25rem;
+            margin-bottom: 1.5rem;
+        }}
+
+        .hw-subcard {{
+            background: rgba(11, 15, 25, 0.65);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.9rem 1.1rem;
+            margin-top: 0.75rem;
+            min-width: 0;
+            overflow: hidden;
+            box-sizing: border-box;
+        }}
+
+        .hw-metric-row {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.35rem 0;
+            border-bottom: 1px dashed rgba(51, 65, 85, 0.4);
+            font-size: 0.85rem;
+            gap: 0.5rem;
+            min-width: 0;
+        }}
+
+        .hw-metric-row:last-child {{
+            border-bottom: none;
+        }}
+
+        .hw-metric-val {{
+            font-weight: 600;
+            text-align: right;
+            word-break: break-word;
+        }}
 
         .progress-bar-bg {{
             background: #0B0F19;
@@ -481,6 +521,10 @@ def generate_html_report(
                 <div class="val" id="stat-apps">0</div>
                 <div class="lbl">Apps Mapeados</div>
             </div>
+            <div class="stat-box">
+                <div class="val" id="stat-hw">Saudável</div>
+                <div class="lbl">Saúde Hardware</div>
+            </div>
         </div>
     </header>
 
@@ -492,6 +536,7 @@ def generate_html_report(
         <button class="tab-btn" onclick="switchTab('tab-top100', this)">5. Top 100 Maiores Arquivos & Pastas</button>
         <button class="tab-btn" onclick="switchTab('tab-tweaks', this)">6. Otimizações do Sistema (WinUtil / macOS)</button>
         <button class="tab-btn" onclick="switchTab('tab-cloud', this)">7. Cloud (OneDrive / iCloud) & Updates</button>
+        <button class="tab-btn" onclick="switchTab('tab-hardware', this)">8. Saúde de Hardware & Otimização de Storage</button>
     </nav>
 
     <main class="container">
@@ -664,6 +709,84 @@ def generate_html_report(
                 </div>
             </div>
         </section>
+
+        <!-- ABA 8: SAÚDE DE HARDWARE & OTIMIZAÇÃO DE DISCOS -->
+        <section id="tab-hardware" class="tab-content">
+            <div id="hw-alerts-container"></div>
+
+            <div class="hw-grid-2">
+                <!-- CARD DISCOS / STORAGE -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">💽 Armazenamento Físico & S.M.A.R.T.</div>
+                        <span class="badge info" id="hw-disks-count">0 Unidades</span>
+                    </div>
+                    <div id="hw-disks-list"></div>
+                </div>
+
+                <!-- CARD MEMÓRIA RAM & SWAP -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🧠 Memória RAM & Diagnóstico de Swap</div>
+                        <span class="badge" id="hw-ram-pressure-badge">Normal</span>
+                    </div>
+                    <div id="hw-ram-content"></div>
+                </div>
+
+                <!-- CARD GPU -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🎮 Adaptadores Gráficos (GPU)</div>
+                        <span class="badge purple" id="hw-gpu-count">0 GPUs</span>
+                    </div>
+                    <div id="hw-gpu-list"></div>
+                </div>
+
+                <!-- CARD BATERIA -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🔋 Bateria & Alimentação</div>
+                        <span class="badge" id="hw-battery-badge">Status</span>
+                    </div>
+                    <div id="hw-battery-content"></div>
+                </div>
+            </div>
+
+            <!-- SEÇÃO DE OTIMIZAÇÃO INTELIGENTE DE ARMAZENAMENTO (RF-14) -->
+            <div class="card" style="margin-top:1.5rem;">
+                <div class="card-header">
+                    <div class="card-title">⚡ Otimização Inteligente de Armazenamento (Guardrails Anti-Degradação de NVMe)</div>
+                    <span class="badge success">4 Camadas Ativas</span>
+                </div>
+                <div style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);border-radius:10px;padding:1rem;margin-bottom:1.25rem;">
+                    <h4 style="font-size:0.92rem;color:var(--accent-primary);margin-bottom:0.35rem;">🛡️ Por que NÃO desfragmentar SSDs ou unidades NVMe?</h4>
+                    <p style="font-size:0.83rem;color:var(--text-muted);line-height:1.45;">
+                        Diferente de HDDs magnéticos onde arquivos fragmentados exigem movimentação física da cabeça de leitura mecânica, unidades de estado sólido (SSD/NVMe) possuem acesso direto por circuitos integrados flash NAND com tempo de resposta em nanossegundos. Desfragmentar um SSD reescreve blocos indevidamente, desgastando suas células de gravação sem qualquer ganho de desempenho. No Windows, o procedimento seguro é o comando <strong>TRIM / Retrim</strong>. No macOS com APFS (Apple File System), a arquitetura Copy-On-Write realiza alocação dinâmica contínua, onde a otimização segura consiste em <strong>verificação de integridade de metadados e expurgo de snapshots locais órfãos</strong>.
+                    </p>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Volume / Drive</th>
+                                <th>Tipo de Mídia Detectado</th>
+                                <th>Guardrail de Detecção</th>
+                                <th>Ação Segura Recomendada</th>
+                                <th>Confirmação / Execução Assistida</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hw-opt-tbody"></tbody>
+                    </table>
+                </div>
+
+                <div id="hw-opt-result-box" style="display:none;margin-top:1rem;padding:1rem;border-radius:10px;background:rgba(16,185,129,0.12);border:1px solid var(--success-color);">
+                    <div style="font-weight:700;color:var(--success-color);margin-bottom:0.35rem;" id="hw-opt-result-title">Otimização de Storage Concluída</div>
+                    <p style="font-size:0.85rem;" id="hw-opt-result-msg"></p>
+                    <div style="margin-top:0.5rem;font-size:0.78rem;color:var(--text-muted);" id="hw-opt-result-checks"></div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <script>
@@ -693,6 +816,14 @@ def generate_html_report(
             document.getElementById('stat-potential').textContent = REPORT_DATA.potential_extra_bytes_formatted || '0.00 B';
             document.getElementById('stat-tweaks').textContent = (REPORT_DATA.tweaks_executed || []).length;
             document.getElementById('stat-apps').textContent = (REPORT_DATA.installed_apps || []).length;
+
+            const hwHealth = REPORT_DATA.hardware_health || {{}};
+            const hwStatusEl = document.getElementById('stat-hw');
+            if (hwStatusEl) {{
+                const ov = hwHealth.overall_status || 'Saudável';
+                hwStatusEl.textContent = ov;
+                hwStatusEl.className = 'val ' + (ov === 'Crítico' ? 'danger' : (ov === 'Atenção' ? 'warning' : 'green'));
+            }}
 
             if (REPORT_DATA.snapshot_id) {{
                 document.getElementById('snapshot-id-label').textContent = REPORT_DATA.snapshot_id;
@@ -736,6 +867,7 @@ def generate_html_report(
             renderTopOccupants();
             renderTweaks();
             renderCloudAndUpdates();
+            renderHardwareAndStorage();
         }}
 
         function renderInstalledApps() {{
@@ -987,6 +1119,272 @@ def generate_html_report(
                 <td class="nowrap"><span class="badge ${{u.risk_badge}}">${{u.risk_level}}</span></td>
                 <td><code>${{u.upgrade_cmd}}</code></td>
             </tr>`).join('') : '<tr><td colspan="5">Nenhuma atualização pendente listada (ou verificação opt-in desativada).</td></tr>';
+        }}
+
+        function renderHardwareAndStorage() {{
+            const hw = REPORT_DATA.hardware_health || {{}};
+            const alerts = hw.critical_alerts || [];
+            const alertsContainer = document.getElementById('hw-alerts-container');
+            if (alertsContainer) {{
+                if (alerts.length > 0) {{
+                    alertsContainer.innerHTML = `
+                        <div style="background:rgba(239,68,68,0.18);border:1px solid var(--danger-color);border-radius:10px;padding:1rem;margin-bottom:1.25rem;">
+                            <strong style="color:var(--danger-color);font-size:0.95rem;">⚠️ Alertas Críticos de Integridade Física / Operacional:</strong>
+                            <ul style="margin-top:0.4rem;padding-left:1.2rem;font-size:0.85rem;color:var(--text-main);">
+                                ${{alerts.map(a => `<li style="margin-bottom:0.25rem;">${{escapeHtml(a)}}</li>`).join('')}}
+                            </ul>
+                        </div>
+                    `;
+                }} else {{
+                    alertsContainer.innerHTML = '';
+                }}
+            }}
+
+            // 1. Discos
+            const disks = hw.disks || [];
+            const disksCountEl = document.getElementById('hw-disks-count');
+            if (disksCountEl) disksCountEl.textContent = `${{disks.length}} Unidade(s)`;
+            const disksListEl = document.getElementById('hw-disks-list');
+            if (disksListEl) {{
+                disksListEl.innerHTML = disks.length ? disks.map(d => {{
+                    const isSsd = d.is_ssd;
+                    const mediaBadgeClass = d.is_nvme ? 'badge info' : (isSsd ? 'badge success' : 'badge warning');
+                    const smartClass = (d.smart_status === 'Verified' || d.smart_status === 'Healthy') ? 'badge success' : 'badge danger';
+                    return `
+                        <div class="hw-subcard">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;gap:0.5rem;">
+                                <strong style="font-size:0.92rem;min-width:0;overflow:hidden;text-overflow:ellipsis;">${{escapeHtml(d.name)}}</strong>
+                                <span class="${{mediaBadgeClass}}">${{escapeHtml(d.media_type)}}</span>
+                            </div>
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Barramento / Protocolo:</span>
+                                <span class="hw-metric-val">${{escapeHtml(d.bus_type)}}</span>
+                            </div>
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Status S.M.A.R.T.:</span>
+                                <span class="${{smartClass}}">${{escapeHtml(d.smart_status)}}</span>
+                            </div>
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Suporte a TRIM:</span>
+                                <span class="hw-metric-val">${{d.trim_supported ? '✅ Ativo / Suportado' : '❌ Inativo / N/A'}}</span>
+                            </div>
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Ação Segura Recomendada:</span>
+                                <span class="hw-metric-val" style="color:var(--accent-primary)">${{escapeHtml(d.recommended_action)}}</span>
+                            </div>
+                            ${{d.total_bytes ? `
+                                <div class="hw-metric-row">
+                                    <span style="color:var(--text-muted)">Capacidade Total:</span>
+                                    <span class="hw-metric-val">${{escapeHtml(d.total_formatted || '')}}</span>
+                                </div>
+                            ` : ''}}
+                        </div>
+                    `;
+                }}).join('') : '<p style="font-size:0.85rem;color:var(--text-muted)">Nenhuma unidade de disco mapeada.</p>';
+            }}
+
+            // 2. RAM & Swap
+            const mem = hw.memory || {{}};
+            const ramBadgeEl = document.getElementById('hw-ram-pressure-badge');
+            if (ramBadgeEl) {{
+                const pLevel = mem.pressure_level || 'Normal';
+                ramBadgeEl.textContent = `Pressão: ${{pLevel}}`;
+                ramBadgeEl.className = 'badge ' + (pLevel === 'Critical' ? 'danger' : (pLevel === 'Warning' ? 'warning' : 'success'));
+            }}
+            const ramContentEl = document.getElementById('hw-ram-content');
+            if (ramContentEl) {{
+                const load = mem.load_percentage || 0;
+                const barColor = load >= 88 ? 'var(--danger-color)' : (load >= 75 ? 'var(--warning-color)' : 'var(--success-color)');
+                ramContentEl.innerHTML = `
+                    <div style="margin-bottom:0.75rem;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.85rem;white-space:nowrap;margin-bottom:0.25rem;">
+                            <span>Carga Física de RAM:</span>
+                            <strong>${{load}}%</strong>
+                        </div>
+                        <div class="progress-bar-bg" style="margin:0.25rem 0;">
+                            <div class="progress-bar-fill" style="width:${{Math.min(load, 100)}}%;background:${{barColor}};"></div>
+                        </div>
+                    </div>
+                    <div class="hw-metric-row">
+                        <span style="color:var(--text-muted)">RAM Física Usada / Total:</span>
+                        <span class="hw-metric-val">${{escapeHtml(mem.used_formatted || '0 B')}} de ${{escapeHtml(mem.total_formatted || '0 B')}}</span>
+                    </div>
+                    <div class="hw-metric-row">
+                        <span style="color:var(--text-muted)">RAM Livre / Disponível:</span>
+                        <span class="hw-metric-val" style="color:var(--success-color)">${{escapeHtml(mem.free_formatted || '0 B')}}</span>
+                    </div>
+                    <div class="hw-metric-row">
+                        <span style="color:var(--text-muted)">Arquivo de Paginação (Swap):</span>
+                        <span class="hw-metric-val">${{escapeHtml(mem.swap_used_formatted || '0 B')}} de ${{escapeHtml(mem.swap_total_formatted || '0 B')}}</span>
+                    </div>
+                    ${{mem.swap_thrashing_detected ? `
+                        <div style="margin-top:0.6rem;padding:0.45rem 0.75rem;background:rgba(239,68,68,0.15);border:1px solid var(--danger-color);border-radius:8px;font-size:0.8rem;color:#fca5a5;">
+                            ⚠️ <strong>Swap Thrashing Detectado:</strong> Pressão extrema de memória causando alta taxa de I/O em disco.
+                        </div>
+                    ` : ''}}
+                    ${{(mem.recommendations || []).length ? `
+                        <div style="margin-top:0.75rem;font-size:0.8rem;color:var(--text-muted);">
+                            <strong>Recomendações:</strong>
+                            <ul style="padding-left:1.1rem;margin-top:0.25rem;">
+                                ${{mem.recommendations.map(r => `<li>${{escapeHtml(r)}}</li>`).join('')}}
+                            </ul>
+                        </div>
+                    ` : ''}}
+                `;
+            }}
+
+            // 3. GPUs
+            const gpus = hw.gpus || [];
+            const gpuCountEl = document.getElementById('hw-gpu-count');
+            if (gpuCountEl) gpuCountEl.textContent = `${{gpus.length}} Adaptador(es)`;
+            const gpuListEl = document.getElementById('hw-gpu-list');
+            if (gpuListEl) {{
+                gpuListEl.innerHTML = gpus.length ? gpus.map(g => `
+                    <div class="hw-subcard">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;gap:0.5rem;">
+                            <strong style="font-size:0.92rem;min-width:0;overflow:hidden;text-overflow:ellipsis;">${{escapeHtml(g.name)}}</strong>
+                            <span class="badge purple">${{escapeHtml(g.vendor)}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Memória de Vídeo (VRAM):</span>
+                            <span class="hw-metric-val">${{escapeHtml(g.vram_formatted)}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Driver / Subsistema:</span>
+                            <span class="hw-metric-val">${{escapeHtml(g.driver_version)}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Status Operacional:</span>
+                            <span class="badge success">${{escapeHtml(g.status)}}</span>
+                        </div>
+                    </div>
+                `).join('') : '<p style="font-size:0.85rem;color:var(--text-muted)">Nenhuma GPU reportada.</p>';
+            }}
+
+            // 4. Bateria
+            const batt = hw.battery || {{}};
+            const battBadgeEl = document.getElementById('hw-battery-badge');
+            if (battBadgeEl) {{
+                if (batt.has_battery) {{
+                    const cond = batt.condition || 'Normal';
+                    battBadgeEl.textContent = cond;
+                    battBadgeEl.className = 'badge ' + (cond.toLowerCase().includes('service') ? 'danger' : 'success');
+                }} else {{
+                    battBadgeEl.textContent = 'Alimentação Direta AC';
+                    battBadgeEl.className = 'badge info';
+                }}
+            }}
+            const battContentEl = document.getElementById('hw-battery-content');
+            if (battContentEl) {{
+                if (batt.has_battery) {{
+                    battContentEl.innerHTML = `
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Condição da Bateria:</span>
+                            <span class="hw-metric-val">${{escapeHtml(batt.condition)}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Ciclos de Carga:</span>
+                            <span class="hw-metric-val">${{batt.cycle_count !== null && batt.cycle_count !== undefined ? batt.cycle_count + ' ciclos' : 'Não reportado'}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Saúde / Capacidade Máxima:</span>
+                            <span class="hw-metric-val" style="color:var(--success-color)">${{batt.health_percentage !== null && batt.health_percentage !== undefined ? batt.health_percentage + '%' : 'Adequada'}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Estado de Carregamento:</span>
+                            <span class="hw-metric-val">${{batt.is_charging ? '⚡ Carregando' : '🔋 Operando na Bateria'}}</span>
+                        </div>
+                    `;
+                }} else {{
+                    battContentEl.innerHTML = `
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.35rem;">
+                            🖥️ Computador operando via fonte de alimentação contínua AC (Desktop Mac / PC Torre). Diagnóstico de ciclos e desgaste de bateria de laptop não se aplica.
+                        </p>
+                    `;
+                }}
+            }}
+
+            // 5. Tabela de Otimização de Storage (RF-14)
+            const optTbody = document.getElementById('hw-opt-tbody');
+            if (optTbody) {{
+                const partitions = REPORT_DATA.partitions || [];
+                optTbody.innerHTML = partitions.length ? partitions.map((p, idx) => {{
+                    const driveName = p.drive_letter;
+                    const fs = (p.filesystem || '').toUpperCase();
+                    const isMacApfs = fs.includes('APFS') || REPORT_DATA.os_platform === 'macos';
+                    const isHdd = !isMacApfs && (p.role || '').toLowerCase().includes('hdd');
+                    const mediaLabel = isMacApfs ? 'APFS SSD (Apple Flash Storage)' : (isHdd ? 'HDD Mecânico' : 'NVMe / SATA SSD');
+                    const mediaClass = isMacApfs ? 'badge info' : (isHdd ? 'badge warning' : 'badge success');
+                    const recommendedAction = isMacApfs ? 'Manutenção APFS & Expurgo Snapshots' : (isHdd ? 'Desfragmentação Física (Defrag)' : 'TRIM / Retrim (Seguro)');
+
+                    return `
+                        <tr>
+                            <td class="nowrap"><strong>${{escapeHtml(driveName)}}</strong><br><small style="color:var(--text-muted)">${{escapeHtml(p.mount_point)}}</small></td>
+                            <td class="nowrap"><span class="${{mediaClass}}">${{escapeHtml(mediaLabel)}}</span></td>
+                            <td class="nowrap"><span class="badge success">4 Camadas Ativas</span></td>
+                            <td class="nowrap"><strong>${{escapeHtml(recommendedAction)}}</strong></td>
+                            <td>
+                                ${{isHdd ? `
+                                    <div style="margin-bottom:0.4rem;">
+                                        <label class="ctrl-label" style="display:inline-flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--warning-color);cursor:pointer;">
+                                            <input type="checkbox" id="chk-hdd-${{idx}}">
+                                            <span>Confirmo que é HDD mecânico e autorizo Defrag</span>
+                                        </label>
+                                    </div>
+                                ` : ''}}
+                                <button class="btn secondary" style="font-size:0.8rem;padding:0.4rem 0.85rem;" data-drive="${{escapeHtml(p.drive_letter)}}" onclick="optimizeDisk(this, ${{isHdd}}, ${{idx}})">
+                                    ⚡ Executar Otimização
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }}).join('') : '<tr><td colspan="5">Nenhum volume disponível para otimização.</td></tr>';
+            }}
+        }}
+
+        async function optimizeDisk(btnOrDrive, isHdd, idx) {{
+            const driveLetter = typeof btnOrDrive === 'string' ? btnOrDrive : (btnOrDrive.getAttribute('data-drive') || 'C:');
+            const btnEl = typeof btnOrDrive === 'object' && btnOrDrive ? btnOrDrive : null;
+            let confirmHdd = false;
+            if (isHdd) {{
+                const chk = document.getElementById(`chk-hdd-${{idx}}`);
+                if (!chk || !chk.checked) {{
+                    alert('⚠️ AVISO DE SEGURANÇA: Para desfragmentar uma partição classificada como HDD magnético, você deve obrigatoriamente marcar a caixa de confirmação para certificar que NÃO se trata de um SSD ou NVMe.');
+                    return;
+                }}
+                confirmHdd = true;
+            }}
+
+            if (btnEl) {{
+                btnEl.disabled = true;
+                btnEl.textContent = '⏳ Otimizando...';
+            }}
+
+            showToast(`Iniciando otimização inteligente para o volume ${{driveLetter}}...`);
+            try {{
+                const res = await fetch('/api/optimize-disk', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{drive: driveLetter, confirm_hdd: confirmHdd, mode: 'real'}})
+                }});
+                const data = await res.json();
+                const resBox = document.getElementById('hw-opt-result-box');
+                if (resBox) {{
+                    resBox.style.display = 'block';
+                    document.getElementById('hw-opt-result-title').textContent = data.action_taken || 'Otimização Concluída';
+                    document.getElementById('hw-opt-result-msg').textContent = data.message || 'Operação finalizada com sucesso.';
+                    const checks = (data.result && data.result.guardrail_checks) || [];
+                    document.getElementById('hw-opt-result-checks').innerHTML = checks.map(c => `• ${{escapeHtml(c)}}<br>`).join('');
+                }}
+                showToast(`✅ Otimização de ${{driveLetter}} finalizada com sucesso!`);
+            }} catch (err) {{
+                showToast(`Erro na requisição de otimização: ${{err.message}}`);
+            }} finally {{
+                if (btnEl) {{
+                    btnEl.disabled = false;
+                    btnEl.textContent = '⚡ Executar Otimização';
+                }}
+            }}
         }}
 
         document.addEventListener('DOMContentLoaded', initDashboard);

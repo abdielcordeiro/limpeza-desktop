@@ -239,6 +239,150 @@ class OutdatedAppInfo:
 
 
 @dataclass
+class StorageDiskHealth:
+    """Diagnóstico físico e operacional de uma unidade de disco (SSD/NVMe/HDD)."""
+    device_id: str
+    name: str
+    media_type: str  # "NVMe SSD", "SATA SSD", "HDD", "Desconhecido"
+    bus_type: str    # "NVMe", "SATA", "PCIe", "USB", "Apple Fabric"
+    smart_status: str  # "Verified", "Healthy", "Warning", "Failing", "Not Supported"
+    trim_supported: bool
+    wear_percentage: Optional[float] = None
+    temperature_celsius: Optional[int] = None
+    power_on_hours: Optional[int] = None
+    is_ssd: bool = True
+    is_nvme: bool = False
+    recommended_action: str = "Retrim / TRIM"
+    risk_alert: Optional[str] = None
+    total_bytes: int = 0
+    free_bytes: int = 0
+
+    @property
+    def total_formatted(self) -> str:
+        return format_bytes(self.total_bytes) if self.total_bytes else ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = asdict(self)
+        data["total_formatted"] = self.total_formatted
+        return data
+
+
+@dataclass
+class MemoryDiagnostics:
+    """Métricas de pressão de memória RAM e uso de swap / arquivo de paginação."""
+    total_bytes: int
+    used_bytes: int
+    free_bytes: int
+    load_percentage: float
+    pressure_level: str  # "Normal", "Warning", "Critical"
+    swap_total_bytes: int
+    swap_used_bytes: int
+    swap_thrashing_detected: bool
+    recommendations: List[str] = field(default_factory=list)
+
+    @property
+    def total_formatted(self) -> str:
+        return format_bytes(self.total_bytes)
+
+    @property
+    def used_formatted(self) -> str:
+        return format_bytes(self.used_bytes)
+
+    @property
+    def free_formatted(self) -> str:
+        return format_bytes(self.free_bytes)
+
+    @property
+    def swap_total_formatted(self) -> str:
+        return format_bytes(self.swap_total_bytes)
+
+    @property
+    def swap_used_formatted(self) -> str:
+        return format_bytes(self.swap_used_bytes)
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = asdict(self)
+        data["total_formatted"] = self.total_formatted
+        data["used_formatted"] = self.used_formatted
+        data["free_formatted"] = self.free_formatted
+        data["swap_total_formatted"] = self.swap_total_formatted
+        data["swap_used_formatted"] = self.swap_used_formatted
+        return data
+
+
+@dataclass
+class GPUInfo:
+    """Informações sobre adaptadores de vídeo e GPUs ativas."""
+    name: str
+    vendor: str
+    vram_bytes: int
+    driver_version: str
+    status: str
+    temperature_celsius: Optional[int] = None
+    is_integrated: bool = False
+
+    @property
+    def vram_formatted(self) -> str:
+        return format_bytes(self.vram_bytes) if self.vram_bytes > 0 else "Compartilhada / Unificada"
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = asdict(self)
+        data["vram_formatted"] = self.vram_formatted
+        return data
+
+
+@dataclass
+class BatteryHealth:
+    """Diagnóstico de bateria e ciclo de vida para notebooks e laptops."""
+    has_battery: bool
+    cycle_count: Optional[int] = None
+    health_percentage: Optional[float] = None
+    condition: str = "Não Aplicável (Desktop)"
+    is_charging: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class HardwareHealthInfo:
+    """Agregado de diagnóstico de saúde de componentes físicos do computador."""
+    disks: List[StorageDiskHealth] = field(default_factory=list)
+    memory: Optional[MemoryDiagnostics] = None
+    gpus: List[GPUInfo] = field(default_factory=list)
+    battery: Optional[BatteryHealth] = None
+    overall_status: str = "Saudável"
+    critical_alerts: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "disks": [d.to_dict() for d in self.disks],
+            "memory": self.memory.to_dict() if self.memory else None,
+            "gpus": [g.to_dict() for g in self.gpus],
+            "battery": self.battery.to_dict() if self.battery else None,
+            "overall_status": self.overall_status,
+            "critical_alerts": list(self.critical_alerts),
+        }
+
+
+@dataclass
+class StorageOptimizationResult:
+    """Resultado da otimização inteligente de storage (TRIM, APFS ou Defrag condicional)."""
+    drive: str
+    media_type: str
+    action_taken: str
+    success: bool
+    fragmentation_before: Optional[float] = None
+    fragmentation_after: Optional[float] = None
+    message: str = ""
+    guardrail_checks: List[str] = field(default_factory=list)
+    user_confirmed: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class SystemExecutionReport:
     """Agregado raiz consolidando todos os resultados da sessão de limpeza e otimização."""
     session_id: str
@@ -262,6 +406,8 @@ class SystemExecutionReport:
     outdated_apps: List[OutdatedAppInfo] = field(default_factory=list)
     active_indicators_count: int = 0
     execution_logs: List[str] = field(default_factory=list)
+    hardware_health: Optional[HardwareHealthInfo] = None
+    storage_optimizations: List[StorageOptimizationResult] = field(default_factory=list)
 
     @property
     def total_bytes_freed_formatted(self) -> str:
@@ -312,4 +458,6 @@ class SystemExecutionReport:
             "onedrive_info": primary_cloud,
             "outdated_apps": [u.to_dict() for u in self.outdated_apps],
             "execution_logs": list(self.execution_logs),
+            "hardware_health": self.hardware_health.to_dict() if self.hardware_health else None,
+            "storage_optimizations": [o.to_dict() for o in self.storage_optimizations],
         }
