@@ -54,6 +54,12 @@ e este projeto adota o [Semantic Versioning](https://semver.org/lang/pt-BR/).
   - Adição de `tests/test_security_guardrails_audit.py` com testes exaustivos de path traversal, guardrails de deleção, proteção de PID e isolamento de privilégios.
   - Atualização dos testes de relatório, rotas de API local e diagnóstico de storage/hardware (69 testes unitários passando 100% verdes).
 
+### Corrigido
+- **Eliminação de Sintaxe Duplicada no JavaScript do Relatório HTML:**
+  - Remoção de bloco duplicado/órfão no gerador `src/presentation/reporters/html_reporter.py` que causava `SyntaxError: Identifier 'REPORT_DATA' has already been declared`.
+  - Implementação de isolamento defensivo com `try-catch` na inicialização de cada aba do Dashboard (`initDashboard`, `initHwTab`, etc.) prevenindo interrupção em cascata de abas subsequentes.
+  - Adição de validação sintática automatizada via `node --check` no teste `tests/test_report_and_server.py`.
+
 ### Segurança & Conformidade
 - **100% de Conformidade com o RNF-01 (Zero-Network / Zero-Telemetry):**
   - Nenhuma biblioteca externa adicionada; código 100% em Python Standard Library.

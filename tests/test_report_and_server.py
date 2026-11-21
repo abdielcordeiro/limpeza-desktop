@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Testes de geração do Relatório HTML Offline e das rotas do Servidor Local (127.0.0.1)."""
 import os
+import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
@@ -61,6 +64,22 @@ class TestReportAndLocalServer(unittest.TestCase):
             self.assertIn("subfolder-container", html_text)
             self.assertIn("longevity-score-num", html_text)
             self.assertIn("refreshLiveHealth()", html_text)
+
+            # Valida sintaxe JavaScript do relatório gerado para prevenir regressões de runtime
+            script_match = re.search(r"<script>(.*?)</script>", html_text, re.DOTALL)
+            self.assertIsNotNone(script_match, "Tag <script> deve existir no HTML")
+            script_js = script_match.group(1)
+            node_binary = shutil.which("node")
+            if node_binary:
+                with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as tmp_js:
+                    tmp_js.write(script_js)
+                    tmp_js_path = tmp_js.name
+                try:
+                    res = subprocess.run([node_binary, "--check", tmp_js_path], capture_output=True, text=True)
+                    self.assertEqual(res.returncode, 0, f"Erro de sintaxe no JavaScript do relatório: {res.stderr}")
+                finally:
+                    if os.path.exists(tmp_js_path):
+                        os.remove(tmp_js_path)
 
             # Testa todas as rotas da API local (127.0.0.1)
             panel = LocalControlPanelServer(

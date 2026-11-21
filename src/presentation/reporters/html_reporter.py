@@ -968,6 +968,34 @@ def generate_html_report(
     <script>
         let REPORT_DATA = {data_json};
 
+        function escapeHtml(text) {{
+            if (text === null || text === undefined) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }}
+
+        function escapeAttr(text) {{
+            if (text === null || text === undefined) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/'/g, '&#39;')
+                .replace(/"/g, '&quot;');
+        }}
+
+        function setText(id, text) {{
+            const el = document.getElementById(id);
+            if (el) el.textContent = (text !== null && text !== undefined) ? text : '';
+        }}
+
+        function setHtml(id, html) {{
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = (html !== null && html !== undefined) ? html : '';
+        }}
+
         function switchTab(tabId, btnEl) {{
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -978,20 +1006,22 @@ def generate_html_report(
 
         function showToast(msg) {{
             const t = document.getElementById('action-toast');
-            t.textContent = msg;
-            t.style.display = 'block';
-            setTimeout(() => {{ t.style.display = 'none'; }}, 7000);
+            if (t) {{
+                t.textContent = msg;
+                t.style.display = 'block';
+                setTimeout(() => {{ t.style.display = 'none'; }}, 7000);
+            }}
         }}
 
         function initDashboard() {{
-            document.getElementById('hdr-os').textContent = (REPORT_DATA.os_version || REPORT_DATA.os_platform || 'OS').toUpperCase();
-            document.getElementById('hdr-mode').textContent = REPORT_DATA.execution_mode === 'real' ? 'EXECUÇÃO REAL' : 'SIMULAÇÃO DRY-RUN';
-            document.getElementById('hdr-sub').textContent = `Sessão ${{REPORT_DATA.session_id || '-'}} • Executado em ${{REPORT_DATA.executed_at || '-'}} • ${{REPORT_DATA.active_indicators_count || 0}} indicadores ativos nas 5 camadas`;
+            setText('hdr-os', (REPORT_DATA.os_version || REPORT_DATA.os_platform || 'OS').toUpperCase());
+            setText('hdr-mode', REPORT_DATA.execution_mode === 'real' ? 'EXECUÇÃO REAL' : 'SIMULAÇÃO DRY-RUN');
+            setText('hdr-sub', `Sessão ${{REPORT_DATA.session_id || '-'}} • Executado em ${{REPORT_DATA.executed_at || '-'}} • ${{REPORT_DATA.active_indicators_count || 0}} indicadores ativos nas 5 camadas`);
 
-            document.getElementById('stat-freed').textContent = REPORT_DATA.total_bytes_freed_formatted || '0.00 B';
-            document.getElementById('stat-potential').textContent = REPORT_DATA.potential_extra_bytes_formatted || '0.00 B';
-            document.getElementById('stat-tweaks').textContent = (REPORT_DATA.tweaks_executed || []).length;
-            document.getElementById('stat-apps').textContent = (REPORT_DATA.installed_apps || []).length;
+            setText('stat-freed', REPORT_DATA.total_bytes_freed_formatted || '0.00 B');
+            setText('stat-potential', REPORT_DATA.potential_extra_bytes_formatted || '0.00 B');
+            setText('stat-tweaks', (REPORT_DATA.tweaks_executed || []).length);
+            setText('stat-apps', (REPORT_DATA.installed_apps || []).length);
 
             const hwHealth = REPORT_DATA.hardware_health || {{}};
             const hwStatusEl = document.getElementById('stat-hw');
@@ -1002,52 +1032,56 @@ def generate_html_report(
             }}
 
             if (REPORT_DATA.snapshot_id) {{
-                document.getElementById('snapshot-id-label').textContent = REPORT_DATA.snapshot_id;
+                setText('snapshot-id-label', REPORT_DATA.snapshot_id);
             }}
 
             // Partições
             const pGrid = document.getElementById('partitions-grid');
-            pGrid.innerHTML = (REPORT_DATA.partitions || []).map(p => {{
-                const barColor = p.health_class === 'danger' ? 'var(--danger-color)' : (p.health_class === 'warning' ? 'var(--warning-color)' : 'var(--success-color)');
-                return `<div class="card">
-                    <div class="card-header">
-                        <div class="card-title">💽 ${{p.drive_letter}} <small style="color:var(--text-muted)">(${{p.role}})</small></div>
-                        <span class="badge ${{p.health_class}}">${{p.health_status}}</span>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;font-size:0.85rem;white-space:nowrap;">
-                        <span>Usado: <strong>${{p.used_formatted}}</strong> (${{p.percent_used}}%)</span>
-                        <span>Livre: <strong>${{p.free_formatted}}</strong> / ${{p.total_formatted}}</span>
-                    </div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" style="width:${{Math.min(p.percent_used, 100)}}%;background:${{barColor}}"></div>
-                    </div>
-                    <p style="font-size:0.8rem;color:var(--text-muted)">${{p.health_desc}}</p>
-                </div>`;
-            }}).join('');
+            if (pGrid) {{
+                pGrid.innerHTML = (REPORT_DATA.partitions || []).map(p => {{
+                    const barColor = p.health_class === 'danger' ? 'var(--danger-color)' : (p.health_class === 'warning' ? 'var(--warning-color)' : 'var(--success-color)');
+                    return `<div class="card">
+                        <div class="card-header">
+                            <div class="card-title">💽 ${{escapeHtml(p.drive_letter)}} <small style="color:var(--text-muted)">(${{escapeHtml(p.role)}})</small></div>
+                            <span class="badge ${{escapeHtml(p.health_class)}}">${{escapeHtml(p.health_status)}}</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-size:0.85rem;white-space:nowrap;">
+                            <span>Usado: <strong>${{escapeHtml(p.used_formatted)}}</strong> (${{p.percent_used}}%)</span>
+                            <span>Livre: <strong>${{escapeHtml(p.free_formatted)}}</strong> / ${{escapeHtml(p.total_formatted)}}</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" style="width:${{Math.min(p.percent_used, 100)}}%;background:${{barColor}}"></div>
+                        </div>
+                        <p style="font-size:0.8rem;color:var(--text-muted)">${{escapeHtml(p.health_desc)}}</p>
+                    </div>`;
+                }}).join('');
+            }}
 
-            document.getElementById('session-logs').textContent = (REPORT_DATA.execution_logs || []).join('\\n');
+            setText('session-logs', (REPORT_DATA.execution_logs || []).join(String.fromCharCode(10)));
 
             // Limpeza Autônoma
             const autoTbody = document.getElementById('auto-cleanup-tbody');
-            const autoList = REPORT_DATA.autonomous_cleanups || [];
-            autoTbody.innerHTML = autoList.length ? autoList.map(c => `<tr>
-                <td><strong>${{c.name}}</strong><br><small style="color:var(--text-muted)">${{c.category}}</small></td>
-                <td class="nowrap"><span class="badge ${{c.status === 'cleaned' ? 'success' : 'warning'}}">${{c.status.toUpperCase()}}</span></td>
-                <td class="nowrap">${{c.files_removed}} arq.</td>
-                <td class="nowrap"><strong>${{c.bytes_freed_formatted}}</strong></td>
-                <td><div>${{c.details}}</div><div class="path-cell">${{(c.target_paths || []).join(' | ')}}</div></td>
-                <td class="nowrap"><button class="btn-act success" onclick="executeRule('${{c.id}}')">🧹 Limpar Agora</button></td>
-            </tr>`).join('') : '<tr><td colspan="6">Nenhuma regra de limpeza autônoma executada nesta sessão.</td></tr>';
+            if (autoTbody) {{
+                const autoList = REPORT_DATA.autonomous_cleanups || [];
+                autoTbody.innerHTML = autoList.length ? autoList.map(c => `<tr>
+                    <td><strong>${{escapeHtml(c.name)}}</strong><br><small style="color:var(--text-muted)">${{escapeHtml(c.category)}}</small></td>
+                    <td class="nowrap"><span class="badge ${{c.status === 'cleaned' ? 'success' : 'warning'}}">${{escapeHtml((c.status || '').toUpperCase())}}</span></td>
+                    <td class="nowrap">${{c.files_removed}} arq.</td>
+                    <td class="nowrap"><strong>${{escapeHtml(c.bytes_freed_formatted)}}</strong></td>
+                    <td><div>${{escapeHtml(c.details)}}</div><div class="path-cell">${{escapeHtml((c.target_paths || []).join(' | '))}}</div></td>
+                    <td class="nowrap"><button class="btn-act success" onclick="executeRule('${{escapeAttr(c.id)}}')">🧹 Limpar Agora</button></td>
+                </tr>`).join('') : '<tr><td colspan="6">Nenhuma regra de limpeza autônoma executada nesta sessão.</td></tr>';
+            }}
 
-            renderInstalledApps();
-            renderOrphans();
-            renderTopOccupants();
-            renderTweaks();
-            renderCloudAndUpdates();
-            renderHardwareAndStorage();
+            try {{ renderInstalledApps(); }} catch(e) {{ console.error('Erro renderInstalledApps:', e); }}
+            try {{ renderOrphans(); }} catch(e) {{ console.error('Erro renderOrphans:', e); }}
+            try {{ renderTopOccupants(); }} catch(e) {{ console.error('Erro renderTopOccupants:', e); }}
+            try {{ renderTweaks(); }} catch(e) {{ console.error('Erro renderTweaks:', e); }}
+            try {{ renderCloudAndUpdates(); }} catch(e) {{ console.error('Erro renderCloudAndUpdates:', e); }}
+            try {{ renderHardwareAndStorage(); }} catch(e) {{ console.error('Erro renderHardwareAndStorage:', e); }}
         }}
 
-        function renderInstalledApps() {{
+                function renderInstalledApps() {{
             const q = (document.getElementById('apps-search').value || '').toLowerCase();
             const list = (REPORT_DATA.installed_apps || []).filter(a => a.name.toLowerCase().includes(q) || a.path.toLowerCase().includes(q));
             document.getElementById('apps-count-badge').textContent = `${{list.length}} aplicativos listados`;
@@ -1252,24 +1286,6 @@ def generate_html_report(
                     btn.textContent = '🔄 Reanalisar Sistema';
                 }}
             }}
-        }}
-
-        function escapeHtml(text) {{
-            if (!text) return '';
-            return String(text)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }}
-
-        function escapeAttr(text) {{
-            if (!text) return '';
-            return String(text)
-                .replace(/&/g, '&amp;')
-                .replace(/'/g, '&#39;')
-                .replace(/"/g, '&quot;');
         }}
 
         function renderTweaks() {{
@@ -1547,20 +1563,24 @@ def generate_html_report(
                 }}
                 // Pilares
                 const sScore = longRep.storage_score !== undefined ? longRep.storage_score : 30;
-                document.getElementById('pilar-storage-score').textContent = `${{sScore}} / 35`;
-                document.getElementById('pilar-storage-bar').style.width = `${{Math.round((sScore / 35) * 100)}}%`;
+                setText('pilar-storage-score', `${{sScore}} / 35`);
+                const sBar = document.getElementById('pilar-storage-bar');
+                if (sBar) sBar.style.width = `${{Math.round((sScore / 35) * 100)}}%`;
 
                 const mScore = longRep.memory_score !== undefined ? longRep.memory_score : 22;
-                document.getElementById('pilar-memory-score').textContent = `${{mScore}} / 25`;
-                document.getElementById('pilar-memory-bar').style.width = `${{Math.round((mScore / 25) * 100)}}%`;
+                setText('pilar-memory-score', `${{mScore}} / 25`);
+                const mBar = document.getElementById('pilar-memory-bar');
+                if (mBar) mBar.style.width = `${{Math.round((mScore / 25) * 100)}}%`;
 
                 const hScore = longRep.hygiene_score !== undefined ? longRep.hygiene_score : 18;
-                document.getElementById('pilar-hygiene-score').textContent = `${{hScore}} / 20`;
-                document.getElementById('pilar-hygiene-bar').style.width = `${{Math.round((hScore / 20) * 100)}}%`;
+                setText('pilar-hygiene-score', `${{hScore}} / 20`);
+                const hBar = document.getElementById('pilar-hygiene-bar');
+                if (hBar) hBar.style.width = `${{Math.round((hScore / 20) * 100)}}%`;
 
                 const tScore = longRep.thermal_battery_score !== undefined ? longRep.thermal_battery_score : 18;
-                document.getElementById('pilar-thermal-score').textContent = `${{tScore}} / 20`;
-                document.getElementById('pilar-thermal-bar').style.width = `${{Math.round((tScore / 20) * 100)}}%`;
+                setText('pilar-thermal-score', `${{tScore}} / 20`);
+                const tBar = document.getElementById('pilar-thermal-bar');
+                if (tBar) tBar.style.width = `${{Math.round((tScore / 20) * 100)}}%`;
             }}
 
             // Recomendações de Longevidade
@@ -1846,225 +1866,6 @@ def generate_html_report(
             }}
 
             // 7. Tabela de Otimização de Storage (RF-14)
-            const optTbody = document.getElementById('hw-opt-tbody');
-            if (optTbody) {{
-                const partitions = REPORT_DATA.partitions || [];
-                optTbody.innerHTML = partitions.length ? partitions.map((p, idx) => {{
-                    const driveName = p.drive_letter;
-                    const fs = (p.filesystem || '').toUpperCase();
-                    const isMacApfs = fs.includes('APFS') || REPORT_DATA.os_platform === 'macos';
-                    const isHdd = !isMacApfs && (p.role || '').toLowerCase().includes('hdd');
-                    const mediaLabel = isMacApfs ? 'APFS SSD (Apple Flash Storage)' : (isHdd ? 'HDD Mecânico' : 'NVMe / SATA SSD');
-                    const mediaClass = isMacApfs ? 'badge info' : (isHdd ? 'badge warning' : 'badge success');
-                    const recommendedAction = isMacApfs ? 'Manutenção APFS & Expurgo Snapshots' : (isHdd ? 'Desfragmentação Física (Defrag)' : 'TRIM / Retrim (Seguro)');
-
-                    return `
-                        <tr>
-                            <td class="nowrap"><strong>${{escapeHtml(driveName)}}</strong><br><small style="color:var(--text-muted)">${{escapeHtml(p.mount_point)}}</small></td>
-                            <td class="nowrap"><span class="${{mediaClass}}">${{escapeHtml(mediaLabel)}}</span></td>
-                            <td class="nowrap"><span class="badge success">4 Camadas Ativas</span></td>
-                            <td class="nowrap"><strong>${{escapeHtml(recommendedAction)}}</strong></td>
-                            <td>
-                                ${{isHdd ? `
-                                    <div style="margin-bottom:0.4rem;">
-                                        <label class="ctrl-label" style="display:inline-flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--warning-color);cursor:pointer;">
-                                            <input type="checkbox" id="chk-hdd-${{idx}}">
-                                            <span>Confirmo que é HDD mecânico e autorizo Defrag</span>
-                                        </label>
-                                    </div>
-                                ` : ''}}
-                                <button class="btn secondary" style="font-size:0.8rem;padding:0.4rem 0.85rem;" data-drive="${{escapeHtml(p.drive_letter)}}" onclick="optimizeDisk(this, ${{isHdd}}, ${{idx}})">
-                                    ⚡ Executar Otimização
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                }}).join('') : '<tr><td colspan="5">Nenhum volume disponível para otimização.</td></tr>';
-            }}
-        }}
-            const hw = REPORT_DATA.hardware_health || {{}};
-            const alerts = hw.critical_alerts || [];
-            const alertsContainer = document.getElementById('hw-alerts-container');
-            if (alertsContainer) {{
-                if (alerts.length > 0) {{
-                    alertsContainer.innerHTML = `
-                        <div style="background:rgba(239,68,68,0.18);border:1px solid var(--danger-color);border-radius:10px;padding:1rem;margin-bottom:1.25rem;">
-                            <strong style="color:var(--danger-color);font-size:0.95rem;">⚠️ Alertas Críticos de Integridade Física / Operacional:</strong>
-                            <ul style="margin-top:0.4rem;padding-left:1.2rem;font-size:0.85rem;color:var(--text-main);">
-                                ${{alerts.map(a => `<li style="margin-bottom:0.25rem;">${{escapeHtml(a)}}</li>`).join('')}}
-                            </ul>
-                        </div>
-                    `;
-                }} else {{
-                    alertsContainer.innerHTML = '';
-                }}
-            }}
-
-            // 1. Discos
-            const disks = hw.disks || [];
-            const disksCountEl = document.getElementById('hw-disks-count');
-            if (disksCountEl) disksCountEl.textContent = `${{disks.length}} Unidade(s)`;
-            const disksListEl = document.getElementById('hw-disks-list');
-            if (disksListEl) {{
-                disksListEl.innerHTML = disks.length ? disks.map(d => {{
-                    const isSsd = d.is_ssd;
-                    const mediaBadgeClass = d.is_nvme ? 'badge info' : (isSsd ? 'badge success' : 'badge warning');
-                    const smartClass = (d.smart_status === 'Verified' || d.smart_status === 'Healthy') ? 'badge success' : 'badge danger';
-                    return `
-                        <div class="hw-subcard">
-                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;gap:0.5rem;">
-                                <strong style="font-size:0.92rem;min-width:0;overflow:hidden;text-overflow:ellipsis;">${{escapeHtml(d.name)}}</strong>
-                                <span class="${{mediaBadgeClass}}">${{escapeHtml(d.media_type)}}</span>
-                            </div>
-                            <div class="hw-metric-row">
-                                <span style="color:var(--text-muted)">Barramento / Protocolo:</span>
-                                <span class="hw-metric-val">${{escapeHtml(d.bus_type)}}</span>
-                            </div>
-                            <div class="hw-metric-row">
-                                <span style="color:var(--text-muted)">Status S.M.A.R.T.:</span>
-                                <span class="${{smartClass}}">${{escapeHtml(d.smart_status)}}</span>
-                            </div>
-                            <div class="hw-metric-row">
-                                <span style="color:var(--text-muted)">Suporte a TRIM:</span>
-                                <span class="hw-metric-val">${{d.trim_supported ? '✅ Ativo / Suportado' : '❌ Inativo / N/A'}}</span>
-                            </div>
-                            <div class="hw-metric-row">
-                                <span style="color:var(--text-muted)">Ação Segura Recomendada:</span>
-                                <span class="hw-metric-val" style="color:var(--accent-primary)">${{escapeHtml(d.recommended_action)}}</span>
-                            </div>
-                            ${{d.total_bytes ? `
-                                <div class="hw-metric-row">
-                                    <span style="color:var(--text-muted)">Capacidade Total:</span>
-                                    <span class="hw-metric-val">${{escapeHtml(d.total_formatted || '')}}</span>
-                                </div>
-                            ` : ''}}
-                        </div>
-                    `;
-                }}).join('') : '<p style="font-size:0.85rem;color:var(--text-muted)">Nenhuma unidade de disco mapeada.</p>';
-            }}
-
-            // 2. RAM & Swap
-            const mem = hw.memory || {{}};
-            const ramBadgeEl = document.getElementById('hw-ram-pressure-badge');
-            if (ramBadgeEl) {{
-                const pLevel = mem.pressure_level || 'Normal';
-                ramBadgeEl.textContent = `Pressão: ${{pLevel}}`;
-                ramBadgeEl.className = 'badge ' + (pLevel === 'Critical' ? 'danger' : (pLevel === 'Warning' ? 'warning' : 'success'));
-            }}
-            const ramContentEl = document.getElementById('hw-ram-content');
-            if (ramContentEl) {{
-                const load = mem.load_percentage || 0;
-                const barColor = load >= 88 ? 'var(--danger-color)' : (load >= 75 ? 'var(--warning-color)' : 'var(--success-color)');
-                ramContentEl.innerHTML = `
-                    <div style="margin-bottom:0.75rem;">
-                        <div style="display:flex;justify-content:space-between;font-size:0.85rem;white-space:nowrap;margin-bottom:0.25rem;">
-                            <span>Carga Física de RAM:</span>
-                            <strong>${{load}}%</strong>
-                        </div>
-                        <div class="progress-bar-bg" style="margin:0.25rem 0;">
-                            <div class="progress-bar-fill" style="width:${{Math.min(load, 100)}}%;background:${{barColor}};"></div>
-                        </div>
-                    </div>
-                    <div class="hw-metric-row">
-                        <span style="color:var(--text-muted)">RAM Física Usada / Total:</span>
-                        <span class="hw-metric-val">${{escapeHtml(mem.used_formatted || '0 B')}} de ${{escapeHtml(mem.total_formatted || '0 B')}}</span>
-                    </div>
-                    <div class="hw-metric-row">
-                        <span style="color:var(--text-muted)">RAM Livre / Disponível:</span>
-                        <span class="hw-metric-val" style="color:var(--success-color)">${{escapeHtml(mem.free_formatted || '0 B')}}</span>
-                    </div>
-                    <div class="hw-metric-row">
-                        <span style="color:var(--text-muted)">Arquivo de Paginação (Swap):</span>
-                        <span class="hw-metric-val">${{escapeHtml(mem.swap_used_formatted || '0 B')}} de ${{escapeHtml(mem.swap_total_formatted || '0 B')}}</span>
-                    </div>
-                    ${{mem.swap_thrashing_detected ? `
-                        <div style="margin-top:0.6rem;padding:0.45rem 0.75rem;background:rgba(239,68,68,0.15);border:1px solid var(--danger-color);border-radius:8px;font-size:0.8rem;color:#fca5a5;">
-                            ⚠️ <strong>Swap Thrashing Detectado:</strong> Pressão extrema de memória causando alta taxa de I/O em disco.
-                        </div>
-                    ` : ''}}
-                    ${{(mem.recommendations || []).length ? `
-                        <div style="margin-top:0.75rem;font-size:0.8rem;color:var(--text-muted);">
-                            <strong>Recomendações:</strong>
-                            <ul style="padding-left:1.1rem;margin-top:0.25rem;">
-                                ${{mem.recommendations.map(r => `<li>${{escapeHtml(r)}}</li>`).join('')}}
-                            </ul>
-                        </div>
-                    ` : ''}}
-                `;
-            }}
-
-            // 3. GPUs
-            const gpus = hw.gpus || [];
-            const gpuCountEl = document.getElementById('hw-gpu-count');
-            if (gpuCountEl) gpuCountEl.textContent = `${{gpus.length}} Adaptador(es)`;
-            const gpuListEl = document.getElementById('hw-gpu-list');
-            if (gpuListEl) {{
-                gpuListEl.innerHTML = gpus.length ? gpus.map(g => `
-                    <div class="hw-subcard">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;gap:0.5rem;">
-                            <strong style="font-size:0.92rem;min-width:0;overflow:hidden;text-overflow:ellipsis;">${{escapeHtml(g.name)}}</strong>
-                            <span class="badge purple">${{escapeHtml(g.vendor)}}</span>
-                        </div>
-                        <div class="hw-metric-row">
-                            <span style="color:var(--text-muted)">Memória de Vídeo (VRAM):</span>
-                            <span class="hw-metric-val">${{escapeHtml(g.vram_formatted)}}</span>
-                        </div>
-                        <div class="hw-metric-row">
-                            <span style="color:var(--text-muted)">Driver / Subsistema:</span>
-                            <span class="hw-metric-val">${{escapeHtml(g.driver_version)}}</span>
-                        </div>
-                        <div class="hw-metric-row">
-                            <span style="color:var(--text-muted)">Status Operacional:</span>
-                            <span class="badge success">${{escapeHtml(g.status)}}</span>
-                        </div>
-                    </div>
-                `).join('') : '<p style="font-size:0.85rem;color:var(--text-muted)">Nenhuma GPU reportada.</p>';
-            }}
-
-            // 4. Bateria
-            const batt = hw.battery || {{}};
-            const battBadgeEl = document.getElementById('hw-battery-badge');
-            if (battBadgeEl) {{
-                if (batt.has_battery) {{
-                    const cond = batt.condition || 'Normal';
-                    battBadgeEl.textContent = cond;
-                    battBadgeEl.className = 'badge ' + (cond.toLowerCase().includes('service') ? 'danger' : 'success');
-                }} else {{
-                    battBadgeEl.textContent = 'Alimentação Direta AC';
-                    battBadgeEl.className = 'badge info';
-                }}
-            }}
-            const battContentEl = document.getElementById('hw-battery-content');
-            if (battContentEl) {{
-                if (batt.has_battery) {{
-                    battContentEl.innerHTML = `
-                        <div class="hw-metric-row">
-                            <span style="color:var(--text-muted)">Condição da Bateria:</span>
-                            <span class="hw-metric-val">${{escapeHtml(batt.condition)}}</span>
-                        </div>
-                        <div class="hw-metric-row">
-                            <span style="color:var(--text-muted)">Ciclos de Carga:</span>
-                            <span class="hw-metric-val">${{batt.cycle_count !== null && batt.cycle_count !== undefined ? batt.cycle_count + ' ciclos' : 'Não reportado'}}</span>
-                        </div>
-                        <div class="hw-metric-row">
-                            <span style="color:var(--text-muted)">Saúde / Capacidade Máxima:</span>
-                            <span class="hw-metric-val" style="color:var(--success-color)">${{batt.health_percentage !== null && batt.health_percentage !== undefined ? batt.health_percentage + '%' : 'Adequada'}}</span>
-                        </div>
-                        <div class="hw-metric-row">
-                            <span style="color:var(--text-muted)">Estado de Carregamento:</span>
-                            <span class="hw-metric-val">${{batt.is_charging ? '⚡ Carregando' : '🔋 Operando na Bateria'}}</span>
-                        </div>
-                    `;
-                }} else {{
-                    battContentEl.innerHTML = `
-                        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.35rem;">
-                            🖥️ Computador operando via fonte de alimentação contínua AC (Desktop Mac / PC Torre). Diagnóstico de ciclos e desgaste de bateria de laptop não se aplica.
-                        </p>
-                    `;
-                }}
-            }}
-
-            // 5. Tabela de Otimização de Storage (RF-14)
             const optTbody = document.getElementById('hw-opt-tbody');
             if (optTbody) {{
                 const partitions = REPORT_DATA.partitions || [];
