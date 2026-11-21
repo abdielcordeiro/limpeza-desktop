@@ -65,11 +65,22 @@ STRUCTURAL_PROTECTED_NAMES = {
     "logs",
     "preferences",
     "saved application state",
+    "httpstorages",
+    "cookies",
+    "application scripts",
     "cloudstorage",
     "mobile documents",
     "keychains",
     "webkit",
-    "caches",
+    "developer",
+    "xcode",
+    "coresimulator",
+    "mobilesync",
+    "backup",
+    "messages",
+    "attachments",
+    "mail",
+    "safari",
     "system",
     "program files",
     "program files (x86)",
@@ -222,7 +233,19 @@ def matches_active_software(folder_name: str, active_indicators: Set[str]) -> bo
     return False
 
 
-def _fast_dir_size(dir_path: str, max_files: int = 3000) -> int:
+def _effective_file_size(st: os.stat_result) -> int:
+    """
+    Retorna o tamanho efetivo ocupado em disco, usando min(st_size, st_blocks * 512)
+    no macOS/POSIX para evitar distorção por sparse files ou stubs online do iCloud.
+    """
+    logical = st.st_size
+    if hasattr(st, "st_blocks") and st.st_blocks is not None and st.st_blocks > 0:
+        physical = st.st_blocks * 512
+        return min(logical, physical) if logical > 0 else physical
+    return logical
+
+
+def _fast_dir_size(dir_path: str, max_files: int = 25000) -> int:
     """Calcula rapidamente o tamanho de um pacote fechado (.app, node_modules, .git) via os.scandir."""
     total = 0
     seen = 0
@@ -239,7 +262,7 @@ def _fast_dir_size(dir_path: str, max_files: int = 3000) -> int:
                         if entry.is_symlink():
                             continue
                         if entry.is_file(follow_symlinks=False):
-                            total += entry.stat(follow_symlinks=False).st_size
+                            total += _effective_file_size(entry.stat(follow_symlinks=False))
                         elif entry.is_dir(follow_symlinks=False):
                             stack.append(entry.path)
                     except OSError:
@@ -264,9 +287,16 @@ def _extract_drive_label(path: str, os_platform: OSPlatform) -> str:
 class DiskScannerAdapter(IDiskScannerPort):
     """Implementa varredura rápida e profunda de disco, detecção de órfãos e apps instalados."""
 
-    def __init__(self, min_orphan_bytes: int = 1024 * 1024) -> None:
+    def __init__(
+        self,
+        min_orphan_bytes: int = 1024 * 1024,
+        max_visited_dirs: int = 25000,
+        max_bundle_files: int = 25000,
+    ) -> None:
         # 1 MB padrão para órfãos (permite achar pastas órfãs reais sem ruído de pastas vazias)
         self.min_orphan_bytes = min_orphan_bytes
+        self.max_visited_dirs = max_visited_dirs
+        self.max_bundle_files = max_bundle_files
 
     def _scan_installed_apps(
         self,
@@ -413,7 +443,7 @@ class DiskScannerAdapter(IDiskScannerPort):
             base_norm = os.path.realpath(base_target).replace("\\", "/").lower()
             queue = deque([base_target])
             visited_dirs = 0
-            while queue and visited_dirs < 2500:
+            while queue and visited_dirs < self.max_visited_dirs:
                 current_dir = queue.popleft()
                 visited_dirs += 1
                 curr_norm = os.path.realpath(current_dir).replace("\\", "/").lower()
@@ -428,9 +458,9 @@ class DiskScannerAdapter(IDiskScannerPort):
                 if dir_base in PRUNED_DIR_NAMES:
                     continue
 
-                # Se for um bundle .app ou node_modules/.git, mede de forma agregada rápida sem explodir a árvore
-                if dir_base.endswith(".app") or dir_base in {"node_modules", ".git"}:
-                    agg_size = _fast_dir_size(current_dir)
+                # Se for um bundle fechado (.app, .xcarchive, .simruntime) ou node_modules/.git, mede de forma agregada rápida
+                if dir_base.endswith((".app", ".xcarchive", ".simruntime")) or dir_base in {"node_modules", ".git"}:
+                    agg_size = _fast_dir_size(current_dir, max_files=self.max_bundle_files)
                     if agg_size > 0:
                         folder_sizes[current_dir] = folder_sizes.get(current_dir, 0) + agg_size
                         path_obj = Path(current_dir)
@@ -451,7 +481,7 @@ class DiskScannerAdapter(IDiskScannerPort):
                                     if entry.name.lower() not in PRUNED_DIR_NAMES:
                                         queue.append(entry.path)
                                 elif entry.is_file(follow_symlinks=False):
-                                    fsize = entry.stat(follow_symlinks=False).st_size
+                                    fsize = _effective_file_size(entry.stat(follow_symlinks=False))
                                     current_files_size += fsize
                                     drv = _extract_drive_label(entry.path, os_platform)
 
@@ -566,10 +596,37 @@ class DiskScannerAdapter(IDiskScannerPort):
                 )
                 continue
 
-            # 4. Caches de Dev Tools
+            # 4. Caches de Dev Tools, Compiladores e Ecossistemas (Xcode, JetBrains, Node, Python, JVM, Rust, Go)
             if any(
                 k in norm_l
-                for k in ("pip/cache", "npm-cache", "yarn/cache", ".gradle/caches", ".nuget/packages", "deriveddata")
+                for k in (
+                    "pip/cache",
+                    "caches/pip",
+                    "npm-cache",
+                    "_cacache",
+                    "yarn/cache",
+                    "caches/yarn",
+                    "berry/cache",
+                    "caches/pnpm",
+                    ".bun/install/cache",
+                    ".gradle/caches",
+                    ".nuget/packages",
+                    "deriveddata",
+                    "devicesupport",
+                    "coresimulator/caches",
+                    "caches/jetbrains",
+                    "logs/jetbrains",
+                    "caches/homebrew",
+                    "caches/cocoapods",
+                    "caches/uv",
+                    "cache/uv",
+                    "caches/pypoetry",
+                    "caches/ms-playwright",
+                    "caches/cypress",
+                    "caches/go-build",
+                    ".cargo/registry/cache",
+                    ".pub-cache/_temp",
+                )
             ):
                 clean_candidates.append(
                     CleanableItem(
@@ -581,14 +638,14 @@ class DiskScannerAdapter(IDiskScannerPort):
                         risk_level="Seguro / Baixo Risco (Pode Apagar)",
                         risk_badge="success",
                         item_type="Cache de Dev Tools & Builds",
-                        reason="Cache de pacotes ou artefatos de compilação reconstruíveis.",
-                        how_to_fix="Pode ser limpo com segurança.",
+                        reason="Cache de pacotes, símbolos de SDK ou artefatos de compilação reconstruíveis.",
+                        how_to_fix="Pode ser limpo com segurança (movido para Lixeira ou excluído).",
                         is_orphan=False,
                     )
                 )
                 continue
 
-            # 5. Verificação de Pastas Órfãs (5 Camadas) em AppData (Windows) e ~/Library (macOS)
+            # 5. Verificação de Pastas Órfãs (5 Camadas) em AppData (Windows) e 12 diretórios da ~/Library (macOS)
             parent_dir = os.path.dirname(f_path.rstrip("\\/")).replace("\\", "/").lower()
             is_direct_orphan_container = any(
                 parent_dir.endswith(container_suffix)
@@ -598,9 +655,15 @@ class DiskScannerAdapter(IDiskScannerPort):
                     "/appdata/locallow",
                     "/library/application support",
                     "/library/containers",
+                    "/library/group containers",
                     "/library/saved application state",
                     "/library/caches",
                     "/library/preferences",
+                    "/library/httpstorages",
+                    "/library/webkit",
+                    "/library/logs",
+                    "/library/cookies",
+                    "/library/application scripts",
                 )
             )
             if is_direct_orphan_container:

@@ -256,14 +256,26 @@ class StorageDiskHealth:
     risk_alert: Optional[str] = None
     total_bytes: int = 0
     free_bytes: int = 0
+    purgeable_bytes: int = 0
+    apfs_snapshots_count: int = 0
 
     @property
     def total_formatted(self) -> str:
         return format_bytes(self.total_bytes) if self.total_bytes else ""
 
+    @property
+    def free_formatted(self) -> str:
+        return format_bytes(self.free_bytes) if self.free_bytes else ""
+
+    @property
+    def purgeable_formatted(self) -> str:
+        return format_bytes(self.purgeable_bytes) if self.purgeable_bytes else "0.00 B"
+
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
         data["total_formatted"] = self.total_formatted
+        data["free_formatted"] = self.free_formatted
+        data["purgeable_formatted"] = self.purgeable_formatted
         return data
 
 
@@ -279,6 +291,12 @@ class MemoryDiagnostics:
     swap_used_bytes: int
     swap_thrashing_detected: bool
     recommendations: List[str] = field(default_factory=list)
+    wired_bytes: int = 0
+    compressed_bytes: int = 0
+    cached_files_bytes: int = 0
+    pageouts_count: int = 0
+    swapouts_count: int = 0
+    page_size_bytes: int = 4096
 
     @property
     def total_formatted(self) -> str:
@@ -300,6 +318,18 @@ class MemoryDiagnostics:
     def swap_used_formatted(self) -> str:
         return format_bytes(self.swap_used_bytes)
 
+    @property
+    def wired_formatted(self) -> str:
+        return format_bytes(self.wired_bytes)
+
+    @property
+    def compressed_formatted(self) -> str:
+        return format_bytes(self.compressed_bytes)
+
+    @property
+    def cached_files_formatted(self) -> str:
+        return format_bytes(self.cached_files_bytes)
+
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
         data["total_formatted"] = self.total_formatted
@@ -307,6 +337,9 @@ class MemoryDiagnostics:
         data["free_formatted"] = self.free_formatted
         data["swap_total_formatted"] = self.swap_total_formatted
         data["swap_used_formatted"] = self.swap_used_formatted
+        data["wired_formatted"] = self.wired_formatted
+        data["compressed_formatted"] = self.compressed_formatted
+        data["cached_files_formatted"] = self.cached_files_formatted
         return data
 
 
@@ -339,9 +372,91 @@ class BatteryHealth:
     health_percentage: Optional[float] = None
     condition: str = "Não Aplicável (Desktop)"
     is_charging: bool = False
+    design_capacity_mah: Optional[int] = None
+    max_capacity_mah: Optional[int] = None
+    temperature_celsius: Optional[float] = None
+    voltage_mv: Optional[int] = None
+    amperage_ma: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class StartupItemInfo:
+    """Agente de inicialização / persistência (LaunchAgents / LaunchDaemons / Windows Run)."""
+    name: str
+    path: str
+    scope: str
+    program_target: str = ""
+    target_exists: bool = True
+    is_orphan: bool = False
+    status_label: str = ""
+    recommendation: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ProcessDiagnosticInfo:
+    """Diagnóstico de processo ativo para inspeção de consumo de RAM/CPU e detecção de zumbis."""
+    pid: int
+    name: str
+    cpu_percent: float
+    memory_mb: float
+    state: str = "Running"
+    is_zombie: bool = False
+    can_terminate: bool = True
+
+    @property
+    def memory_formatted(self) -> str:
+        return f"{self.memory_mb:.1f} MB"
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = asdict(self)
+        data["memory_formatted"] = self.memory_formatted
+        return data
+
+
+@dataclass
+class LongevityRecommendation:
+    """Recomendação acionável para preservar e estender a vida útil física e operacional da máquina."""
+    id: str
+    pilar: str
+    severity: str  # "critical", "warning", "info", "optimal"
+    title: str
+    what_to_do: str
+    longevity_impact: str
+    action_type: str = "none"
+    action_label: str = ""
+    action_payload: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class LongevityScoreReport:
+    """Score determinístico de Saúde e Vida Útil (0 a 100) dividido em 4 pilares de engenharia."""
+    total_score: int
+    grade_label: str
+    storage_score: int
+    memory_score: int
+    hygiene_score: int
+    thermal_battery_score: int
+    recommendations: List[LongevityRecommendation] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "total_score": self.total_score,
+            "grade_label": self.grade_label,
+            "storage_score": self.storage_score,
+            "memory_score": self.memory_score,
+            "hygiene_score": self.hygiene_score,
+            "thermal_battery_score": self.thermal_battery_score,
+            "recommendations": [r.to_dict() for r in self.recommendations],
+        }
 
 
 @dataclass
@@ -353,6 +468,9 @@ class HardwareHealthInfo:
     battery: Optional[BatteryHealth] = None
     overall_status: str = "Saudável"
     critical_alerts: List[str] = field(default_factory=list)
+    startup_items: List[StartupItemInfo] = field(default_factory=list)
+    top_processes: List[ProcessDiagnosticInfo] = field(default_factory=list)
+    longevity_report: Optional[LongevityScoreReport] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -362,6 +480,9 @@ class HardwareHealthInfo:
             "battery": self.battery.to_dict() if self.battery else None,
             "overall_status": self.overall_status,
             "critical_alerts": list(self.critical_alerts),
+            "startup_items": [s.to_dict() for s in self.startup_items],
+            "top_processes": [p.to_dict() for p in self.top_processes],
+            "longevity_report": self.longevity_report.to_dict() if self.longevity_report else None,
         }
 
 

@@ -488,6 +488,62 @@ def generate_html_report(
             background: var(--accent-primary);
             border-radius: 999px;
         }}
+
+        .btn-act {{
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent-primary);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 0.22rem 0.55rem;
+            border-radius: 6px;
+            font-size: 0.74rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }}
+        .btn-act:hover {{
+            background: rgba(56, 189, 248, 0.25);
+            border-color: var(--accent-primary);
+        }}
+        .btn-act.danger {{
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--danger-color);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }}
+        .btn-act.danger:hover {{
+            background: rgba(239, 68, 68, 0.25);
+            border-color: var(--danger-color);
+        }}
+        .btn-act.success {{
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--success-color);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }}
+        .btn-act.success:hover {{
+            background: rgba(16, 185, 129, 0.25);
+            border-color: var(--success-color);
+        }}
+        .btn-act.warning {{
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--warning-color);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }}
+        .btn-act.warning:hover {{
+            background: rgba(245, 158, 11, 0.25);
+            border-color: var(--warning-color);
+        }}
+        .btn-act.purple {{
+            background: rgba(168, 85, 247, 0.12);
+            color: var(--purple-color);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+        }}
+        .btn-act.purple:hover {{
+            background: rgba(168, 85, 247, 0.25);
+            border-color: var(--purple-color);
+        }}
     </style>
 </head>
 <body>
@@ -565,6 +621,7 @@ def generate_html_report(
                             <th>Arquivos</th>
                             <th>Espaço Liberado / Simulado</th>
                             <th>Detalhes e Caminhos</th>
+                            <th>Ação</th>
                         </tr>
                     </thead>
                     <tbody id="auto-cleanup-tbody"></tbody>
@@ -589,6 +646,7 @@ def generate_html_report(
                             <th>Volume / Drive</th>
                             <th>Fornecedor / Bundle</th>
                             <th>Recomendação de Desinstalação / Migração</th>
+                            <th>Ação</th>
                         </tr>
                     </thead>
                     <tbody id="installed-apps-tbody"></tbody>
@@ -606,8 +664,16 @@ def generate_html_report(
                     </label>
                     <input type="text" id="orphans-search" placeholder="Buscar pasta órfã ou cache..." oninput="renderOrphans()">
                 </div>
-                <div class="filter-controls">
-                    <button class="btn success" onclick="executeSelectedCleanup()">🧹 Executar Limpeza de Itens Selecionados</button>
+                <div class="filter-controls" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <label class="checkbox-inline" style="white-space:nowrap;font-size:0.83rem;color:var(--text-main);">
+                        <input type="radio" name="orphan-op-mode" id="op-mode-trash" value="trash" checked>
+                        <span>🗑️ Mover p/ Lixeira (Recomendado)</span>
+                    </label>
+                    <label class="checkbox-inline" style="white-space:nowrap;font-size:0.83rem;color:var(--danger-color);">
+                        <input type="radio" name="orphan-op-mode" id="op-mode-delete" value="delete">
+                        <span>🔥 Exclusão Permanente</span>
+                    </label>
+                    <button class="btn success" onclick="executeSelectedCleanup()">🧹 Executar Ação nos Itens Selecionados</button>
                 </div>
             </div>
             <div class="table-wrapper">
@@ -620,6 +686,7 @@ def generate_html_report(
                             <th>Tipo</th>
                             <th>Classificação (5 Camadas)</th>
                             <th>Diagnóstico & Caminho</th>
+                            <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody id="orphans-tbody"></tbody>
@@ -651,6 +718,7 @@ def generate_html_report(
                             <th>Tamanho</th>
                             <th>Classificação de Segurança</th>
                             <th>Caminho & Recomendação</th>
+                            <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody id="top100-tbody"></tbody>
@@ -691,7 +759,11 @@ def generate_html_report(
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">📦 Atualizações de Softwares Detectadas (winget / brew)</div>
-                    <span class="badge purple" id="updates-count-badge">0 pacotes</span>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span class="badge purple" id="updates-count-badge">0 pacotes</span>
+                        <button class="btn-act purple" onclick="upgradePackage('__all__')">🚀 Atualizar Todos</button>
+                        <button class="btn-act" style="border:1px solid var(--border-color);color:var(--text-muted);" onclick="upgradePackage('__cleanup__')">🧹 Limpar Cache</button>
+                    </div>
                 </div>
                 <div class="table-wrapper">
                     <table>
@@ -702,6 +774,7 @@ def generate_html_report(
                                 <th>Nova Versão</th>
                                 <th>Risco</th>
                                 <th>Comando de Atualização</th>
+                                <th>Ação</th>
                             </tr>
                         </thead>
                         <tbody id="updates-tbody"></tbody>
@@ -710,8 +783,66 @@ def generate_html_report(
             </div>
         </section>
 
-        <!-- ABA 8: SAÚDE DE HARDWARE & OTIMIZAÇÃO DE DISCOS -->
+        <!-- ABA 8: SAÚDE DE HARDWARE, LONGEVIDADE & PROCESSOS -->
         <section id="tab-hardware" class="tab-content">
+            <!-- PAINEL DE DESTAQUE DO SCORE DE LONGEVIDADE (0-100) (RF-17) -->
+            <div class="card" style="margin-bottom:1.5rem;background:linear-gradient(135deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,0.9) 100%);border:1px solid rgba(56,189,248,0.4);">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
+                    <div style="display:flex;align-items:center;gap:1rem;">
+                        <span style="font-size:2.5rem;font-weight:800;color:var(--accent-primary);line-height:1;" id="longevity-score-num">--</span>
+                        <div>
+                            <div style="font-size:0.8rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;letter-spacing:0.04em;">Score de Saúde & Longevidade do Hardware</div>
+                            <span class="badge success" id="longevity-grade-badge">Calculando...</span>
+                        </div>
+                    </div>
+                    <div>
+                        <button class="btn secondary" style="font-size:0.8rem;padding:0.45rem 0.9rem;" id="btn-live-health" onclick="refreshLiveHealth()">
+                            🔄 Atualizar Telemetria em Tempo Real
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:1rem;margin-top:0.5rem;">
+                    <div class="hw-subcard" style="margin-top:0;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.82rem;white-space:nowrap;margin-bottom:0.25rem;">
+                            <span style="color:var(--text-muted)">1. Armazenamento & NAND:</span>
+                            <strong id="pilar-storage-score">-- / 35</strong>
+                        </div>
+                        <div class="progress-bar-bg" style="margin:0.25rem 0;height:7px;"><div id="pilar-storage-bar" class="progress-bar-fill" style="width:0%;background:var(--accent-primary);"></div></div>
+                    </div>
+                    <div class="hw-subcard" style="margin-top:0;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.82rem;white-space:nowrap;margin-bottom:0.25rem;">
+                            <span style="color:var(--text-muted)">2. Memória & Swap SSD:</span>
+                            <strong id="pilar-memory-score">-- / 25</strong>
+                        </div>
+                        <div class="progress-bar-bg" style="margin:0.25rem 0;height:7px;"><div id="pilar-memory-bar" class="progress-bar-fill" style="width:0%;background:var(--success-color);"></div></div>
+                    </div>
+                    <div class="hw-subcard" style="margin-top:0;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.82rem;white-space:nowrap;margin-bottom:0.25rem;">
+                            <span style="color:var(--text-muted)">3. Higiene & Boot:</span>
+                            <strong id="pilar-hygiene-score">-- / 20</strong>
+                        </div>
+                        <div class="progress-bar-bg" style="margin:0.25rem 0;height:7px;"><div id="pilar-hygiene-bar" class="progress-bar-fill" style="width:0%;background:var(--purple-color);"></div></div>
+                    </div>
+                    <div class="hw-subcard" style="margin-top:0;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.82rem;white-space:nowrap;margin-bottom:0.25rem;">
+                            <span style="color:var(--text-muted)">4. Elétrica / Térmica:</span>
+                            <strong id="pilar-thermal-score">-- / 20</strong>
+                        </div>
+                        <div class="progress-bar-bg" style="margin:0.25rem 0;height:7px;"><div id="pilar-thermal-bar" class="progress-bar-fill" style="width:0%;background:var(--warning-color);"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GRID DE RECOMENDAÇÕES ACIONÁVEIS DE VIDA ÚTIL (RF-17) -->
+            <div class="card" style="margin-bottom:1.5rem;" id="longevity-recommendations-box">
+                <div class="card-header">
+                    <div class="card-title">💡 Recomendações Acionáveis para Conservação do Hardware</div>
+                    <span class="badge info" id="longevity-rec-count">0 Recomendações</span>
+                </div>
+                <div id="longevity-rec-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:1rem;"></div>
+            </div>
+
             <div id="hw-alerts-container"></div>
 
             <div class="hw-grid-2">
@@ -749,6 +880,51 @@ def generate_html_report(
                         <span class="badge" id="hw-battery-badge">Status</span>
                     </div>
                     <div id="hw-battery-content"></div>
+                </div>
+            </div>
+
+            <!-- SEÇÃO DE PERSISTÊNCIA & STARTUP ITEMS (RF-17) -->
+            <div class="card" style="margin-top:1.5rem;">
+                <div class="card-header">
+                    <div class="card-title">🚀 Agentes de Inicialização & Persistência (LaunchAgents / Startup)</div>
+                    <span class="badge" id="startup-count-badge">0 Agentes</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nome do Agente</th>
+                                <th>Escopo</th>
+                                <th>Status do Binário</th>
+                                <th>Caminho do Executável & Recomendação</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="startup-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SEÇÃO DE TOP PROCESSOS CONSUMIDORES & ZUMBIS (RF-17) -->
+            <div class="card" style="margin-top:1.5rem;">
+                <div class="card-header">
+                    <div class="card-title">⚡ Top Processos Consumidores de RAM/CPU & Detecção de Zumbis</div>
+                    <span class="badge purple" id="processes-count-badge">Top 10</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>PID</th>
+                                <th>Nome do Processo</th>
+                                <th>CPU %</th>
+                                <th>Memória (MB)</th>
+                                <th>Estado</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processes-tbody"></tbody>
+                    </table>
                 </div>
             </div>
 
@@ -860,7 +1036,8 @@ def generate_html_report(
                 <td class="nowrap">${{c.files_removed}} arq.</td>
                 <td class="nowrap"><strong>${{c.bytes_freed_formatted}}</strong></td>
                 <td><div>${{c.details}}</div><div class="path-cell">${{(c.target_paths || []).join(' | ')}}</div></td>
-            </tr>`).join('') : '<tr><td colspan="5">Nenhuma regra de limpeza autônoma executada nesta sessão.</td></tr>';
+                <td class="nowrap"><button class="btn-act success" onclick="executeRule('${{c.id}}')">🧹 Limpar Agora</button></td>
+            </tr>`).join('') : '<tr><td colspan="6">Nenhuma regra de limpeza autônoma executada nesta sessão.</td></tr>';
 
             renderInstalledApps();
             renderOrphans();
@@ -880,7 +1057,8 @@ def generate_html_report(
                 <td class="nowrap"><span class="badge purple">${{a.drive}}</span></td>
                 <td>${{a.vendor}} ${{a.bundle_id ? `<br><small style="color:var(--text-muted)">${{a.bundle_id}}</small>` : ''}}</td>
                 <td>${{a.uninstall_hint}}</td>
-            </tr>`).join('') : '<tr><td colspan="5">Nenhum aplicativo encontrado para o filtro informado.</td></tr>';
+                <td class="nowrap"><button class="btn-act" onclick="revealPath('${{escapeAttr(a.path)}}')">📂 Abrir</button></td>
+            </tr>`).join('') : '<tr><td colspan="6">Nenhum aplicativo encontrado para o filtro informado.</td></tr>';
         }}
 
         function renderOrphans() {{
@@ -900,8 +1078,12 @@ def generate_html_report(
                     <td>${{c.item_type || c.type}}</td>
                     <td class="nowrap"><span class="badge ${{c.risk_badge}}">${{c.risk_level}}</span></td>
                     <td><div>${{c.reason}}</div><div class="path-cell">${{c.path}}</div></td>
+                    <td class="nowrap">
+                        <button class="btn-act" onclick="revealPath('${{escapeAttr(c.path)}}')">📂 Abrir</button>
+                        <button class="btn-act danger" onclick="fileAction('${{escapeAttr(c.path)}}', 'trash')">🗑️ Lixeira</button>
+                    </td>
                 </tr>`;
-            }}).join('') : '<tr><td colspan="6">Nenhuma pasta órfã ou cache pendente encontrado.</td></tr>';
+            }}).join('') : '<tr><td colspan="7">Nenhuma pasta órfã ou cache pendente encontrado.</td></tr>';
         }}
 
         function saveOrphanCheck(cb) {{
@@ -925,25 +1107,29 @@ def generate_html_report(
                 showToast('Selecione ao menos uma pasta órfã ou cache na tabela para limpar.');
                 return;
             }}
+            const isDelete = document.getElementById('op-mode-delete') && document.getElementById('op-mode-delete').checked;
+            const action = isDelete ? 'delete' : 'trash';
+            const verb = isDelete ? 'exclusão permanente' : 'quarentena na Lixeira';
+            if (isDelete) {{
+                if (!confirm(`Deseja realmente EXCLUIR DEFINITIVAMENTE ${{selected.length}} item(ns) selecionado(s)?`)) return;
+            }}
             if (window.location.protocol.startsWith('http')) {{
                 try {{
-                    const res = await fetch('/api/clean-selected', {{
+                    showToast(`Processando ${{verb}} de ${{selected.length}} itens...`);
+                    const res = await fetch('/api/file-action', {{
                         method: 'POST',
                         headers: {{'Content-Type': 'application/json'}},
-                        body: JSON.stringify({{paths: selected, mode: 'real'}})
+                        body: JSON.stringify({{paths: selected, action: action, mode: 'real'}})
                     }});
                     const data = await res.json();
-                    if (data.status === 'ok') {{
-                        // Remover itens apagados de REPORT_DATA.clean_suggestions
-                        const cleanedSet = new Set(data.cleaned_paths || []);
+                    if (data.status === 'ok' || data.status === 'trashed' || data.success) {{
+                        const cleanedSet = new Set(data.affected_paths || selected);
                         REPORT_DATA.clean_suggestions = (REPORT_DATA.clean_suggestions || []).filter(c => !cleanedSet.has(c.path));
 
-                        // Limpar seleções salvas no localStorage
                         const saved = JSON.parse(localStorage.getItem('limpeza_checked_orphans') || '{{}}');
-                        (data.cleaned_paths || []).forEach(p => delete saved[p]);
+                        (data.affected_paths || selected).forEach(p => delete saved[p]);
                         localStorage.setItem('limpeza_checked_orphans', JSON.stringify(saved));
 
-                        // Atualizar métricas do cabeçalho
                         if (data.total_freed_formatted) {{
                             document.getElementById('stat-freed').textContent = data.total_freed_formatted;
                         }}
@@ -951,12 +1137,10 @@ def generate_html_report(
                             document.getElementById('stat-potential').textContent = data.potential_extra_formatted;
                         }}
 
-                        // Redesenhar tabela de órfãos imediatamente (os itens somem da UI)
                         renderOrphans();
-
-                        showToast(`Sucesso! ${{data.bytes_freed_formatted || '0 B'}} liberados e itens removidos da lista.`);
+                        showToast(`Sucesso! ${{data.bytes_freed_formatted || '0 B'}} liberados (${{verb}}).`);
                     }} else {{
-                        showToast(data.message || 'Erro ao processar limpeza selecionada.');
+                        showToast(data.message || data.error || 'Erro ao processar limpeza selecionada.');
                     }}
                     return;
                 }} catch (e) {{
@@ -978,6 +1162,7 @@ def generate_html_report(
 
             document.getElementById('top100-tbody').innerHTML = list.length ? list.map((o, i) => {{
                 const hasSubs = Array.isArray(o.sub_occupants) && o.sub_occupants.length > 0;
+                const canDel = !String(o.safety_action || '').includes('Não Apagar');
                 const subsHtml = hasSubs ? `
                     <div style="margin-top:0.4rem;">
                         <button type="button" class="btn-expand-sub" onclick="toggleSubfolders(${{i}})">
@@ -989,8 +1174,12 @@ def generate_html_report(
                                 const pct = Math.min(100, Math.max(4, Math.round((sub.size / parentBytes) * 100)));
                                 return `<div class="subfolder-item">
                                     <span class="subfolder-name" title="${{escapeHtml(sub.path)}}">📁 ${{escapeHtml(sub.name)}}</span>
-                                    <span class="subfolder-size">${{sub.size_formatted}}</span>
+                                    <span class="subfolder-size" style="white-space:nowrap;">${{sub.size_formatted}}</span>
                                     <div class="subfolder-bar"><div class="subfolder-fill" style="width:${{pct}}%"></div></div>
+                                    <div style="display:inline-flex;gap:4px;margin-left:6px;">
+                                        <button class="btn-act" style="padding:0.15rem 0.4rem;font-size:0.7rem;" onclick="revealPath('${{escapeAttr(sub.path)}}')">📂</button>
+                                        <button class="btn-act danger" style="padding:0.15rem 0.4rem;font-size:0.7rem;" onclick="fileAction('${{escapeAttr(sub.path)}}', 'trash')">🗑️</button>
+                                    </div>
                                 </div>`;
                             }}).join('')}}
                         </div>
@@ -1007,8 +1196,15 @@ def generate_html_report(
                         <small style="color:var(--text-muted)">${{escapeHtml(o.safety_recommendation || '')}}</small>
                         ${{subsHtml}}
                     </td>
+                    <td class="nowrap">
+                        <button class="btn-act" onclick="revealPath('${{escapeAttr(o.path)}}')">📂 Abrir</button>
+                        ${{canDel ? `
+                            <button class="btn-act danger" onclick="fileAction('${{escapeAttr(o.path)}}', 'trash')">🗑️ Lixeira</button>
+                            <button class="btn-act danger" onclick="fileAction('${{escapeAttr(o.path)}}', 'delete')">🔥 Excluir</button>
+                        ` : '<span class="badge info" style="font-size:0.7rem;">Protegido</span>'}}
+                    </td>
                 </tr>`;
-            }}).join('') : '<tr><td colspan="6">Nenhum item corresponde aos filtros selecionados.</td></tr>';
+            }}).join('') : '<tr><td colspan="7">Nenhum item corresponde aos filtros selecionados.</td></tr>';
         }}
 
         function toggleSubfolders(idx) {{
@@ -1068,6 +1264,14 @@ def generate_html_report(
                 .replace(/'/g, '&#039;');
         }}
 
+        function escapeAttr(text) {{
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/'/g, '&#39;')
+                .replace(/"/g, '&quot;');
+        }}
+
         function renderTweaks() {{
             const list = REPORT_DATA.tweaks_executed || [];
             document.getElementById('tweaks-tbody').innerHTML = list.length ? list.map(t => `<tr>
@@ -1118,10 +1322,566 @@ def generate_html_report(
                 <td class="nowrap"><strong>${{u.latest_version}}</strong></td>
                 <td class="nowrap"><span class="badge ${{u.risk_badge}}">${{u.risk_level}}</span></td>
                 <td><code>${{u.upgrade_cmd}}</code></td>
-            </tr>`).join('') : '<tr><td colspan="5">Nenhuma atualização pendente listada (ou verificação opt-in desativada).</td></tr>';
+                <td class="nowrap"><button class="btn-act success" onclick="upgradePackage('${{escapeAttr(u.app_id)}}')">⬆️ Atualizar</button></td>
+            </tr>`).join('') : '<tr><td colspan="6">Nenhuma atualização pendente listada (ou verificação opt-in desativada).</td></tr>';
+        }}
+
+        async function fileAction(path, action) {{
+            action = action || 'trash';
+            const verb = action === 'trash' ? 'mover para a Lixeira' : 'excluir permanentemente';
+            if (action === 'delete') {{
+                if (!confirm(`Deseja realmente EXCLUIR DEFINITIVAMENTE?\\n${{path}}`)) return;
+            }}
+            if (!window.location.protocol.startsWith('http')) {{
+                showToast(`Ação '${{action}}' simulada para: ${{path}}`);
+                return;
+            }}
+            showToast(`Processando ${{verb}}...`);
+            try {{
+                const res = await fetch('/api/file-action', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{paths: [path], action: action, mode: 'real'}})
+                }});
+                const data = await res.json();
+                if (data.success || data.status === 'ok' || data.status === 'trashed') {{
+                    const affectedSet = new Set(data.affected_paths || [path]);
+                    REPORT_DATA.clean_suggestions = (REPORT_DATA.clean_suggestions || []).filter(c => !affectedSet.has(c.path));
+                    REPORT_DATA.top_occupants = (REPORT_DATA.top_occupants || []).filter(o => !affectedSet.has(o.path));
+                    if (data.total_freed_formatted) document.getElementById('stat-freed').textContent = data.total_freed_formatted;
+                    if (data.potential_extra_formatted) document.getElementById('stat-potential').textContent = data.potential_extra_formatted;
+                    renderOrphans();
+                    renderTopOccupants();
+                    showToast(`Sucesso! ${{data.bytes_freed_formatted || '0 B'}} liberados (${{verb}}).`);
+                }} else {{
+                    showToast(data.message || data.error || 'Não foi possível completar a ação.');
+                }}
+            }} catch (e) {{
+                showToast('Erro de comunicação: ' + e.message);
+            }}
+        }}
+
+        async function revealPath(path) {{
+            if (!window.location.protocol.startsWith('http')) {{
+                showToast(`Caminho destacado: ${{path}}`);
+                return;
+            }}
+            try {{
+                const res = await fetch('/api/reveal-path', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{path: path}})
+                }});
+                const data = await res.json();
+                if (data.status === 'ok') {{
+                    showToast(`Local aberto no gerenciador de arquivos: ${{path}}`);
+                }} else {{
+                    showToast(data.message || 'Falha ao abrir pasta no gerenciador.');
+                }}
+            }} catch (e) {{
+                showToast('Erro ao abrir local: ' + e.message);
+            }}
+        }}
+
+        async function executeRule(ruleId) {{
+            if (!window.location.protocol.startsWith('http')) {{
+                showToast(`Regra '${{ruleId}}' simulada.`);
+                return;
+            }}
+            showToast(`Executando limpeza para a regra '${{ruleId}}'...`);
+            try {{
+                const res = await fetch('/api/execute-rule', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{rule_id: ruleId, mode: 'real'}})
+                }});
+                const data = await res.json();
+                if (data.status === 'ok') {{
+                    if (data.total_freed_formatted) document.getElementById('stat-freed').textContent = data.total_freed_formatted;
+                    if (data.entry && REPORT_DATA.autonomous_cleanups) {{
+                        const idx = REPORT_DATA.autonomous_cleanups.findIndex(c => c.id === ruleId);
+                        if (idx >= 0) REPORT_DATA.autonomous_cleanups[idx] = data.entry;
+                        else REPORT_DATA.autonomous_cleanups.push(data.entry);
+                        initDashboard();
+                    }}
+                    showToast(`Regra executada com sucesso! Liberados: ${{data.entry ? data.entry.bytes_freed_formatted : ''}}`);
+                }} else {{
+                    showToast(data.message || 'Erro ao executar regra.');
+                }}
+            }} catch (e) {{
+                showToast('Erro de comunicação: ' + e.message);
+            }}
+        }}
+
+        async function refreshLiveHealth() {{
+            const btn = document.getElementById('btn-live-health');
+            if (!window.location.protocol.startsWith('http')) {{
+                showToast('Atualização em tempo real disponível via servidor local 127.0.0.1.');
+                return;
+            }}
+            if (btn) {{ btn.disabled = true; btn.textContent = '⏳ Atualizando...'; }}
+            showToast('Coletando telemetria nativa instantânea...');
+            try {{
+                const res = await fetch(`/api/live-health?os=${{REPORT_DATA.os_platform || ''}}`);
+                const data = await res.json();
+                if (data.status === 'ok' && data.hardware_health) {{
+                    REPORT_DATA.hardware_health = data.hardware_health;
+                    renderHardwareAndStorage();
+                    showToast('✅ Telemetria de hardware e longevidade atualizadas em tempo real!');
+                }} else {{
+                    showToast(data.message || 'Falha ao atualizar telemetria.');
+                }}
+            }} catch (e) {{
+                showToast('Erro ao atualizar telemetria: ' + e.message);
+            }} finally {{
+                if (btn) {{ btn.disabled = false; btn.textContent = '🔄 Atualizar Telemetria em Tempo Real'; }}
+            }}
+        }}
+
+        async function removeStartupItem(path) {{
+            if (!confirm(`Deseja remover este agente de inicialização?\\nUm backup prévio será salvo em outputs/snapshots/.\\n${{path}}`)) return;
+            if (!window.location.protocol.startsWith('http')) {{
+                showToast(`Remoção simulada do agente: ${{path}}`);
+                return;
+            }}
+            try {{
+                const res = await fetch('/api/startup-action', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{path: path, action: 'remove'}})
+                }});
+                const data = await res.json();
+                if (data.status === 'ok') {{
+                    if (REPORT_DATA.hardware_health && REPORT_DATA.hardware_health.startup_items) {{
+                        REPORT_DATA.hardware_health.startup_items = REPORT_DATA.hardware_health.startup_items.filter(s => s.path !== path);
+                        renderHardwareAndStorage();
+                    }}
+                    showToast('✅ Agente de inicialização removido com backup!');
+                }} else {{
+                    showToast(data.message || 'Falha ao remover agente.');
+                }}
+            }} catch (e) {{
+                showToast('Erro de comunicação: ' + e.message);
+            }}
+        }}
+
+        async function terminateProcess(pid) {{
+            if (!confirm(`Deseja realmente encerrar o processo PID ${{pid}}?`)) return;
+            if (!window.location.protocol.startsWith('http')) {{
+                showToast(`Encerramento simulado do processo PID ${{pid}}.`);
+                return;
+            }}
+            try {{
+                const res = await fetch('/api/process-action', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{pid: pid, action: 'terminate'}})
+                }});
+                const data = await res.json();
+                if (data.status === 'ok') {{
+                    if (REPORT_DATA.hardware_health && REPORT_DATA.hardware_health.top_processes) {{
+                        REPORT_DATA.hardware_health.top_processes = REPORT_DATA.hardware_health.top_processes.filter(p => p.pid !== pid);
+                        renderHardwareAndStorage();
+                    }}
+                    showToast(`Processo PID ${{pid}} encerrado.`);
+                }} else {{
+                    showToast(data.message || 'Não foi possível encerrar o processo.');
+                }}
+            }} catch (e) {{
+                showToast('Erro de comunicação: ' + e.message);
+            }}
+        }}
+
+        async function upgradePackage(packageId) {{
+            showToast(`Executando ação para pacote: ${{packageId}}...`);
+            if (!window.location.protocol.startsWith('http')) {{
+                showToast(`Atualização simulada para: ${{packageId}}`);
+                return;
+            }}
+            try {{
+                const res = await fetch('/api/upgrade-packages', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{package_id: packageId}})
+                }});
+                const data = await res.json();
+                if (data.status === 'ok') {{
+                    showToast(`✅ ${{data.message || 'Operação de pacotes concluída com sucesso!'}}`);
+                }} else {{
+                    showToast(`Aviso: ${{data.message || data.output || 'Falha ao atualizar pacote'}}`);
+                }}
+            }} catch (e) {{
+                showToast('Erro ao atualizar: ' + e.message);
+            }}
         }}
 
         function renderHardwareAndStorage() {{
+            const hw = REPORT_DATA.hardware_health || {{}};
+            const alerts = hw.critical_alerts || [];
+            const alertsContainer = document.getElementById('hw-alerts-container');
+            if (alertsContainer) {{
+                if (alerts.length > 0) {{
+                    alertsContainer.innerHTML = `
+                        <div style="background:rgba(239,68,68,0.18);border:1px solid var(--danger-color);border-radius:10px;padding:1rem;margin-bottom:1.25rem;">
+                            <strong style="color:var(--danger-color);font-size:0.95rem;">⚠️ Alertas Críticos de Integridade Física / Operacional:</strong>
+                            <ul style="margin-top:0.4rem;padding-left:1.2rem;font-size:0.85rem;color:var(--text-main);">
+                                ${{alerts.map(a => `<li style="margin-bottom:0.25rem;">${{escapeHtml(a)}}</li>`).join('')}}
+                            </ul>
+                        </div>
+                    `;
+                }} else {{
+                    alertsContainer.innerHTML = '';
+                }}
+            }}
+
+            // 0. Longevity Health Score (RF-17)
+            const longRep = hw.longevity_report || {{}};
+            const scoreNumEl = document.getElementById('longevity-score-num');
+            if (scoreNumEl) {{
+                const score = longRep.total_score !== undefined ? longRep.total_score : 85;
+                scoreNumEl.textContent = `${{score}}/100`;
+                const gradeEl = document.getElementById('longevity-grade-badge');
+                if (gradeEl) {{
+                    gradeEl.textContent = longRep.grade_label || 'Saudável';
+                    gradeEl.className = 'badge ' + (score >= 90 ? 'success' : (score >= 75 ? 'info' : (score >= 55 ? 'warning' : 'danger')));
+                }}
+                // Pilares
+                const sScore = longRep.storage_score !== undefined ? longRep.storage_score : 30;
+                document.getElementById('pilar-storage-score').textContent = `${{sScore}} / 35`;
+                document.getElementById('pilar-storage-bar').style.width = `${{Math.round((sScore / 35) * 100)}}%`;
+
+                const mScore = longRep.memory_score !== undefined ? longRep.memory_score : 22;
+                document.getElementById('pilar-memory-score').textContent = `${{mScore}} / 25`;
+                document.getElementById('pilar-memory-bar').style.width = `${{Math.round((mScore / 25) * 100)}}%`;
+
+                const hScore = longRep.hygiene_score !== undefined ? longRep.hygiene_score : 18;
+                document.getElementById('pilar-hygiene-score').textContent = `${{hScore}} / 20`;
+                document.getElementById('pilar-hygiene-bar').style.width = `${{Math.round((hScore / 20) * 100)}}%`;
+
+                const tScore = longRep.thermal_battery_score !== undefined ? longRep.thermal_battery_score : 18;
+                document.getElementById('pilar-thermal-score').textContent = `${{tScore}} / 20`;
+                document.getElementById('pilar-thermal-bar').style.width = `${{Math.round((tScore / 20) * 100)}}%`;
+            }}
+
+            // Recomendações de Longevidade
+            const recs = longRep.recommendations || [];
+            const recCountEl = document.getElementById('longevity-rec-count');
+            if (recCountEl) recCountEl.textContent = `${{recs.length}} Recomendação(ões)`;
+            const recGridEl = document.getElementById('longevity-rec-grid');
+            if (recGridEl) {{
+                recGridEl.innerHTML = recs.length ? recs.map(r => {{
+                    const sevClass = r.severity === 'critical' ? 'danger' : (r.severity === 'warning' ? 'warning' : 'info');
+                    let btnAction = '';
+                    if (r.action_type === 'remove_broken_startup') {{
+                        btnAction = `<button class="btn-act danger" onclick="removeStartupItem('${{escapeAttr((r.action_payload && r.action_payload.paths && r.action_payload.paths[0]) || '')}}')">${{r.action_label || 'Remover'}}</button>`;
+                    }} else if (r.action_type === 'clean_orphans') {{
+                        btnAction = `<button class="btn-act success" onclick="switchTab('tab-orphans', document.querySelectorAll('.tab-btn')[3])">${{r.action_label || 'Ir para Órfãos'}}</button>`;
+                    }} else if (r.action_type === 'thin_snapshots') {{
+                        btnAction = `<button class="btn-act warning" onclick="optimizeDisk('/', false, 0)">${{r.action_label || 'Expurgar'}}</button>`;
+                    }} else if (r.action_type === 'terminate_zombies') {{
+                        btnAction = `<button class="btn-act danger" onclick="document.getElementById('processes-tbody').scrollIntoView({{behavior:'smooth'}})">${{r.action_label || 'Ver Processos'}}</button>`;
+                    }}
+                    return `
+                        <div class="hw-subcard" style="margin-top:0;display:flex;flex-direction:column;justify-content:space-between;">
+                            <div>
+                                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;margin-bottom:0.4rem;">
+                                    <strong style="font-size:0.92rem;color:var(--text-main);">${{escapeHtml(r.title)}}</strong>
+                                    <span class="badge ${{sevClass}}">${{r.severity.toUpperCase()}}</span>
+                                </div>
+                                <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:0.5rem;"><strong>O Que Fazer:</strong> ${{escapeHtml(r.what_to_do)}}</p>
+                                <p style="font-size:0.78rem;color:rgba(148,163,184,0.85);margin-bottom:0.6rem;background:rgba(15,23,42,0.6);padding:0.4rem 0.6rem;border-radius:6px;">
+                                    🔬 <em>Impacto Físico no Hardware:</em> ${{escapeHtml(r.longevity_impact)}}
+                                </p>
+                            </div>
+                            <div style="margin-top:0.4rem;display:flex;justify-content:flex-end;">
+                                ${{btnAction}}
+                            </div>
+                        </div>
+                    `;
+                }}).join('') : '<p style="font-size:0.85rem;color:var(--text-muted)">Nenhuma ação corretiva necessária. Todos os subsistemas operando em condições ideais.</p>';
+            }}
+
+            // 1. Discos & APFS
+            const disks = hw.disks || [];
+            const disksCountEl = document.getElementById('hw-disks-count');
+            if (disksCountEl) disksCountEl.textContent = `${{disks.length}} Unidade(s)`;
+            const disksListEl = document.getElementById('hw-disks-list');
+            if (disksListEl) {{
+                disksListEl.innerHTML = disks.length ? disks.map(d => {{
+                    const isSsd = d.is_ssd;
+                    const mediaBadgeClass = d.is_nvme ? 'badge info' : (isSsd ? 'badge success' : 'badge warning');
+                    const smartClass = (d.smart_status === 'Verified' || d.smart_status === 'Healthy') ? 'badge success' : 'badge danger';
+                    return `
+                        <div class="hw-subcard">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;gap:0.5rem;">
+                                <strong style="font-size:0.92rem;min-width:0;overflow:hidden;text-overflow:ellipsis;">${{escapeHtml(d.name)}}</strong>
+                                <span class="${{mediaBadgeClass}}">${{escapeHtml(d.media_type)}}</span>
+                            </div>
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Barramento / Protocolo:</span>
+                                <span class="hw-metric-val">${{escapeHtml(d.bus_type)}}</span>
+                            </div>
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Status S.M.A.R.T.:</span>
+                                <span class="${{smartClass}}">${{escapeHtml(d.smart_status)}}</span>
+                            </div>
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Suporte a TRIM:</span>
+                                <span class="hw-metric-val">${{d.trim_supported ? '✅ Ativo / Suportado' : '❌ Inativo / N/A'}}</span>
+                            </div>
+                            ${{d.purgeable_bytes ? `
+                                <div class="hw-metric-row">
+                                    <span style="color:var(--text-muted)">Espaço Purgável (macOS APFS):</span>
+                                    <span class="hw-metric-val" style="color:var(--accent-primary)">${{escapeHtml(d.purgeable_formatted || '0 B')}}</span>
+                                </div>
+                            ` : ''}}
+                            ${{d.apfs_snapshots_count !== undefined && d.apfs_snapshots_count !== null ? `
+                                <div class="hw-metric-row">
+                                    <span style="color:var(--text-muted)">Snapshots Locais APFS:</span>
+                                    <span class="hw-metric-val">${{d.apfs_snapshots_count}} snapshot(s)</span>
+                                </div>
+                            ` : ''}}
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Ação Segura Recomendada:</span>
+                                <span class="hw-metric-val" style="color:var(--accent-primary)">${{escapeHtml(d.recommended_action)}}</span>
+                            </div>
+                            ${{d.total_bytes ? `
+                                <div class="hw-metric-row">
+                                    <span style="color:var(--text-muted)">Capacidade Total:</span>
+                                    <span class="hw-metric-val">${{escapeHtml(d.total_formatted || '')}}</span>
+                                </div>
+                            ` : ''}}
+                        </div>
+                    `;
+                }}).join('') : '<p style="font-size:0.85rem;color:var(--text-muted)">Nenhuma unidade de disco mapeada.</p>';
+            }}
+
+            // 2. RAM & Swap
+            const mem = hw.memory || {{}};
+            const ramBadgeEl = document.getElementById('hw-ram-pressure-badge');
+            if (ramBadgeEl) {{
+                const pLevel = mem.pressure_level || 'Normal';
+                ramBadgeEl.textContent = `Pressão: ${{pLevel}}`;
+                ramBadgeEl.className = 'badge ' + (pLevel === 'Critical' ? 'danger' : (pLevel === 'Warning' ? 'warning' : 'success'));
+            }}
+            const ramContentEl = document.getElementById('hw-ram-content');
+            if (ramContentEl) {{
+                const load = mem.load_percentage || 0;
+                const barColor = load >= 88 ? 'var(--danger-color)' : (load >= 75 ? 'var(--warning-color)' : 'var(--success-color)');
+                ramContentEl.innerHTML = `
+                    <div style="margin-bottom:0.75rem;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.85rem;white-space:nowrap;margin-bottom:0.25rem;">
+                            <span>Carga Física de RAM:</span>
+                            <strong>${{load}}%</strong>
+                        </div>
+                        <div class="progress-bar-bg" style="margin:0.25rem 0;">
+                            <div class="progress-bar-fill" style="width:${{Math.min(load, 100)}}%;background:${{barColor}};"></div>
+                        </div>
+                    </div>
+                    <div class="hw-metric-row">
+                        <span style="color:var(--text-muted)">RAM Física Usada / Total:</span>
+                        <span class="hw-metric-val">${{escapeHtml(mem.used_formatted || '0 B')}} de ${{escapeHtml(mem.total_formatted || '0 B')}}</span>
+                    </div>
+                    <div class="hw-metric-row">
+                        <span style="color:var(--text-muted)">RAM Livre / Disponível:</span>
+                        <span class="hw-metric-val" style="color:var(--success-color)">${{escapeHtml(mem.free_formatted || '0 B')}}</span>
+                    </div>
+                    ${{mem.wired_bytes ? `
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Wired Memory (Kernel Darwin):</span>
+                            <span class="hw-metric-val">${{escapeHtml(mem.wired_formatted || '0 B')}}</span>
+                        </div>
+                    ` : ''}}
+                    ${{mem.compressed_bytes ? `
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Memória Comprimida (Compressor):</span>
+                            <span class="hw-metric-val">${{escapeHtml(mem.compressed_formatted || '0 B')}}</span>
+                        </div>
+                    ` : ''}}
+                    <div class="hw-metric-row">
+                        <span style="color:var(--text-muted)">Arquivo de Paginação (Swap):</span>
+                        <span class="hw-metric-val">${{escapeHtml(mem.swap_used_formatted || '0 B')}} de ${{escapeHtml(mem.swap_total_formatted || '0 B')}}</span>
+                    </div>
+                    ${{mem.page_size_bytes ? `
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Tamanho de Página (hw.pagesize):</span>
+                            <span class="hw-metric-val">${{mem.page_size_bytes === 16384 ? '16 KB (Apple Silicon)' : '4 KB'}}</span>
+                        </div>
+                    ` : ''}}
+                    ${{mem.swap_thrashing_detected ? `
+                        <div style="margin-top:0.6rem;padding:0.45rem 0.75rem;background:rgba(239,68,68,0.15);border:1px solid var(--danger-color);border-radius:8px;font-size:0.8rem;color:#fca5a5;">
+                            ⚠️ <strong>Swap Thrashing Detectado:</strong> Pressão extrema de memória causando alta taxa de I/O em disco.
+                        </div>
+                    ` : ''}}
+                `;
+            }}
+
+            // 3. GPUs
+            const gpus = hw.gpus || [];
+            const gpuCountEl = document.getElementById('hw-gpu-count');
+            if (gpuCountEl) gpuCountEl.textContent = `${{gpus.length}} Adaptador(es)`;
+            const gpuListEl = document.getElementById('hw-gpu-list');
+            if (gpuListEl) {{
+                gpuListEl.innerHTML = gpus.length ? gpus.map(g => `
+                    <div class="hw-subcard">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;gap:0.5rem;">
+                            <strong style="font-size:0.92rem;min-width:0;overflow:hidden;text-overflow:ellipsis;">${{escapeHtml(g.name)}}</strong>
+                            <span class="badge purple">${{escapeHtml(g.vendor)}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Memória de Vídeo (VRAM):</span>
+                            <span class="hw-metric-val">${{escapeHtml(g.vram_formatted)}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Driver / Subsistema:</span>
+                            <span class="hw-metric-val">${{escapeHtml(g.driver_version)}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Status Operacional:</span>
+                            <span class="badge success">${{escapeHtml(g.status)}}</span>
+                        </div>
+                    </div>
+                `).join('') : '<p style="font-size:0.85rem;color:var(--text-muted)">Nenhuma GPU reportada.</p>';
+            }}
+
+            // 4. Bateria
+            const batt = hw.battery || {{}};
+            const battBadgeEl = document.getElementById('hw-battery-badge');
+            if (battBadgeEl) {{
+                if (batt.has_battery) {{
+                    const cond = batt.condition || 'Normal';
+                    battBadgeEl.textContent = cond;
+                    battBadgeEl.className = 'badge ' + (cond.toLowerCase().includes('service') ? 'danger' : 'success');
+                }} else {{
+                    battBadgeEl.textContent = 'Alimentação Direta AC';
+                    battBadgeEl.className = 'badge info';
+                }}
+            }}
+            const battContentEl = document.getElementById('hw-battery-content');
+            if (battContentEl) {{
+                if (batt.has_battery) {{
+                    battContentEl.innerHTML = `
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Condição da Bateria:</span>
+                            <span class="hw-metric-val">${{escapeHtml(batt.condition)}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Ciclos de Carga:</span>
+                            <span class="hw-metric-val">${{batt.cycle_count !== null && batt.cycle_count !== undefined ? batt.cycle_count + ' ciclos' : 'Não reportado'}}</span>
+                        </div>
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Saúde / Capacidade Máxima:</span>
+                            <span class="hw-metric-val" style="color:var(--success-color)">${{batt.health_percentage !== null && batt.health_percentage !== undefined ? batt.health_percentage + '%' : 'Adequada'}}</span>
+                        </div>
+                        ${{batt.design_capacity_mah ? `
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Capacidade Projeto / Atual:</span>
+                                <span class="hw-metric-val">${{batt.max_capacity_mah || '--'}} mAh / ${{batt.design_capacity_mah}} mAh</span>
+                            </div>
+                        ` : ''}}
+                        ${{batt.temperature_celsius !== null && batt.temperature_celsius !== undefined ? `
+                            <div class="hw-metric-row">
+                                <span style="color:var(--text-muted)">Temperatura Térmica:</span>
+                                <span class="hw-metric-val" style="color:${{batt.temperature_celsius > 38 ? 'var(--warning-color)' : 'var(--text-main)'}}">${{batt.temperature_celsius}} °C</span>
+                            </div>
+                        ` : ''}}
+                        <div class="hw-metric-row">
+                            <span style="color:var(--text-muted)">Estado de Carregamento:</span>
+                            <span class="hw-metric-val">${{batt.is_charging ? '⚡ Carregando' : '🔋 Operando na Bateria'}}</span>
+                        </div>
+                    `;
+                }} else {{
+                    battContentEl.innerHTML = `
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.35rem;">
+                            🖥️ Computador operando via fonte contínua AC (Desktop Mac / PC Torre). Diagnóstico de ciclos e desgaste de bateria de laptop não se aplica.
+                        </p>
+                    `;
+                }}
+            }}
+
+            // 5. Tabela de Startup Items (RF-17)
+            const sItems = hw.startup_items || [];
+            const startupBadge = document.getElementById('startup-count-badge');
+            if (startupBadge) startupBadge.textContent = `${{sItems.length}} Agente(s)`;
+            const startupTbody = document.getElementById('startup-tbody');
+            if (startupTbody) {{
+                startupTbody.innerHTML = sItems.length ? sItems.map(s => `
+                    <tr>
+                        <td class="nowrap"><strong>${{escapeHtml(s.name)}}</strong></td>
+                        <td class="nowrap"><span class="badge info">${{escapeHtml(s.scope)}}</span></td>
+                        <td class="nowrap"><span class="badge ${{s.is_orphan ? 'danger' : 'success'}}">${{escapeHtml(s.status_label)}}</span></td>
+                        <td>
+                            <div class="path-cell">${{escapeHtml(s.program_target || s.path)}}</div>
+                            <small style="color:var(--text-muted);">${{escapeHtml(s.recommendation)}}</small>
+                        </td>
+                        <td class="nowrap">
+                            ${{s.is_orphan ? `
+                                <button class="btn-act danger" onclick="removeStartupItem('${{escapeAttr(s.path)}}')">🗑️ Remover (c/ Backup)</button>
+                            ` : '<span class="badge success" style="font-size:0.7rem;">Íntegro</span>'}}
+                        </td>
+                    </tr>
+                `).join('') : '<tr><td colspan="5">Nenhum agente de inicialização ou persistência mapeado.</td></tr>';
+            }}
+
+            // 6. Tabela de Top Processos & Zumbis (RF-17)
+            const procs = hw.top_processes || [];
+            const procBadge = document.getElementById('processes-count-badge');
+            if (procBadge) procBadge.textContent = `${{procs.length}} Processos`;
+            const procTbody = document.getElementById('processes-tbody');
+            if (procTbody) {{
+                procTbody.innerHTML = procs.length ? procs.map(p => `
+                    <tr>
+                        <td class="nowrap"><code>${{p.pid}}</code></td>
+                        <td><strong>${{escapeHtml(p.name)}}</strong></td>
+                        <td class="nowrap">${{p.cpu_percent}}%</td>
+                        <td class="nowrap"><strong>${{p.memory_formatted || (p.memory_mb + ' MB')}}</strong></td>
+                        <td class="nowrap"><span class="badge ${{p.is_zombie ? 'danger' : 'info'}}">${{escapeHtml(p.state)}}</span></td>
+                        <td class="nowrap">
+                            ${{p.can_terminate ? `
+                                <button class="btn-act danger" onclick="terminateProcess(${{p.pid}})">🛑 Encerrar</button>
+                            ` : '<span class="badge info" style="font-size:0.7rem;">Vital do SO</span>'}}
+                        </td>
+                    </tr>
+                `).join('') : '<tr><td colspan="6">Nenhum processo pesado registrado.</td></tr>';
+            }}
+
+            // 7. Tabela de Otimização de Storage (RF-14)
+            const optTbody = document.getElementById('hw-opt-tbody');
+            if (optTbody) {{
+                const partitions = REPORT_DATA.partitions || [];
+                optTbody.innerHTML = partitions.length ? partitions.map((p, idx) => {{
+                    const driveName = p.drive_letter;
+                    const fs = (p.filesystem || '').toUpperCase();
+                    const isMacApfs = fs.includes('APFS') || REPORT_DATA.os_platform === 'macos';
+                    const isHdd = !isMacApfs && (p.role || '').toLowerCase().includes('hdd');
+                    const mediaLabel = isMacApfs ? 'APFS SSD (Apple Flash Storage)' : (isHdd ? 'HDD Mecânico' : 'NVMe / SATA SSD');
+                    const mediaClass = isMacApfs ? 'badge info' : (isHdd ? 'badge warning' : 'badge success');
+                    const recommendedAction = isMacApfs ? 'Manutenção APFS & Expurgo Snapshots' : (isHdd ? 'Desfragmentação Física (Defrag)' : 'TRIM / Retrim (Seguro)');
+
+                    return `
+                        <tr>
+                            <td class="nowrap"><strong>${{escapeHtml(driveName)}}</strong><br><small style="color:var(--text-muted)">${{escapeHtml(p.mount_point)}}</small></td>
+                            <td class="nowrap"><span class="${{mediaClass}}">${{escapeHtml(mediaLabel)}}</span></td>
+                            <td class="nowrap"><span class="badge success">4 Camadas Ativas</span></td>
+                            <td class="nowrap"><strong>${{escapeHtml(recommendedAction)}}</strong></td>
+                            <td>
+                                ${{isHdd ? `
+                                    <div style="margin-bottom:0.4rem;">
+                                        <label class="ctrl-label" style="display:inline-flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--warning-color);cursor:pointer;">
+                                            <input type="checkbox" id="chk-hdd-${{idx}}">
+                                            <span>Confirmo que é HDD mecânico e autorizo Defrag</span>
+                                        </label>
+                                    </div>
+                                ` : ''}}
+                                <button class="btn secondary" style="font-size:0.8rem;padding:0.4rem 0.85rem;" data-drive="${{escapeHtml(p.drive_letter)}}" onclick="optimizeDisk(this, ${{isHdd}}, ${{idx}})">
+                                    ⚡ Executar Otimização
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }}).join('') : '<tr><td colspan="5">Nenhum volume disponível para otimização.</td></tr>';
+            }}
+        }}
             const hw = REPORT_DATA.hardware_health || {{}};
             const alerts = hw.critical_alerts || [];
             const alertsContainer = document.getElementById('hw-alerts-container');

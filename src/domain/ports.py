@@ -18,6 +18,10 @@ from .entities import (
     MemoryDiagnostics,
     GPUInfo,
     BatteryHealth,
+    StartupItemInfo,
+    ProcessDiagnosticInfo,
+    LongevityRecommendation,
+    LongevityScoreReport,
     HardwareHealthInfo,
     StorageOptimizationResult,
 )
@@ -84,6 +88,14 @@ class IFileSystemCleanerPort(ABC):
     ) -> AutonomousCleanupEntry:
         pass
 
+    @abstractmethod
+    def move_paths_to_trash(
+        self,
+        paths: List[str],
+        mode: ExecutionMode = ExecutionMode.REAL,
+    ) -> Dict[str, Any]:
+        pass
+
 
 class IDiskScannerPort(ABC):
     """Porta para o scanner profundo de pastas órfãs, apps instalados e top 100 arquivos."""
@@ -140,6 +152,14 @@ class ICloudAndPackagesPort(ABC):
     def check_outdated_packages(self) -> List[OutdatedAppInfo]:
         pass
 
+    @abstractmethod
+    def upgrade_package(self, package_id: str) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    def cleanup_package_manager(self) -> Dict[str, Any]:
+        pass
+
 
 class ISnapshotRepositoryPort(ABC):
     """Porta para persistência e consulta de snapshots locais para Undo."""
@@ -182,6 +202,22 @@ class IHardwareProbePort(ABC):
 
     @abstractmethod
     def get_battery_health(self) -> BatteryHealth:
+        pass
+
+    @abstractmethod
+    def get_startup_items(self) -> List[StartupItemInfo]:
+        pass
+
+    @abstractmethod
+    def get_top_processes(self, limit: int = 10) -> List[ProcessDiagnosticInfo]:
+        pass
+
+    @abstractmethod
+    def remove_startup_item(self, item_path: str) -> bool:
+        pass
+
+    @abstractmethod
+    def terminate_process(self, pid: int) -> bool:
         pass
 
 

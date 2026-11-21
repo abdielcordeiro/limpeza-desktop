@@ -3,6 +3,8 @@
 import os
 import re
 import sys
+import time
+import signal
 import json
 import ctypes
 import shutil
@@ -24,6 +26,8 @@ from src.domain.entities import (
     MemoryDiagnostics,
     GPUInfo,
     BatteryHealth,
+    StartupItemInfo,
+    ProcessDiagnosticInfo,
     HardwareHealthInfo,
     StorageOptimizationResult,
 )
@@ -431,6 +435,44 @@ class WindowsCloudAndPackagesAdapter(ICloudAndPackagesPort):
             return []
         return outdated
 
+    def upgrade_package(self, package_id: str) -> Dict[str, Any]:
+        """Atualiza um pacote via winget no Windows (RF-16)."""
+        if not package_id or not isinstance(package_id, str):
+            return {"status": "error", "message": "ID de pacote inválido."}
+        if package_id.startswith("-") or not re.match(r"^[a-zA-Z0-9._@\-\/]+$", package_id):
+            return {"status": "error", "message": "Identificador com caracteres inválidos ou parâmetros não permitidos."}
+
+        if package_id == "__cleanup__":
+            cmd = ["winget", "source", "update"]
+        elif package_id == "__all__":
+            cmd = ["winget", "upgrade", "--all", "--silent", "--accept-source-agreements", "--accept-package-agreements"]
+        else:
+            cmd = ["winget", "upgrade", "--id", package_id, "--silent", "--accept-source-agreements", "--accept-package-agreements"]
+
+        if sys.platform == "win32":
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=90, check=False)
+                output = (res.stdout + "\n" + res.stderr).strip()
+                return {
+                    "status": "ok" if res.returncode == 0 else "error",
+                    "command": " ".join(cmd),
+                    "output": output,
+                    "message": f"Comando '{' '.join(cmd)}' executado (código {res.returncode}).",
+                }
+            except Exception as e:
+                return {"status": "error", "command": " ".join(cmd), "output": str(e), "message": f"Falha ao executar: {e}"}
+        else:
+            return {
+                "status": "ok",
+                "command": " ".join(cmd),
+                "output": "Simulação winget em ambiente não-Windows.",
+                "message": f"[Simulação] Atualização de pacote '{package_id}' executada com sucesso.",
+            }
+
+    def cleanup_package_manager(self) -> Dict[str, Any]:
+        """Atualiza fontes e limpa caches de pacotes no Windows."""
+        return self.upgrade_package("__cleanup__")
+
 
 class WindowsHardwareProbeAdapter(IHardwareProbePort):
     """Diagnóstico e monitoramento de saúde física e operacional para Windows."""
@@ -650,11 +692,148 @@ class WindowsHardwareProbeAdapter(IHardwareProbePort):
             condition="Não Aplicável (Desktop Windows / Sem Bateria)",
         )
 
+    def get_startup_items(self) -> List[StartupItemInfo]:
+        """Audita chaves de inicialização Run no Registro do Windows e atalhos de inicialização."""
+        items: List[StartupItemInfo] = []
+        if sys.platform == "win32" and winreg:
+            reg_targets = [
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", "HKCU Run"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run", "HKLM Run"),
+            ]
+            for hkey, subkey, scope in reg_targets:
+                try:
+                    with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_READ) as key:
+                        idx = 0
+                        while True:
+                            try:
+                                v_name, v_data, _ = winreg.EnumValue(key, idx)
+                                idx += 1
+                                prog_str = str(v_data).strip()
+                                # Extrai o caminho limpo do executável
+                                m = re.match(r'^"([^"]+)"', prog_str)
+                                clean_exec = m.group(1) if m else prog_str.split()[0] if prog_str else ""
+                                target_exists = os.path.exists(clean_exec) if clean_exec else False
+                                is_orphan = (not target_exists) and bool(clean_exec)
+                                items.append(
+                                    StartupItemInfo(
+                                        name=v_name,
+                                        path=f"{scope}\\{v_name}",
+                                        scope=f"Windows {scope}",
+                                        program_target=clean_exec,
+                                        target_exists=target_exists,
+                                        is_orphan=is_orphan,
+                                        status_label="⚠️ Chave Órfã (Executável Ausente)" if is_orphan else "✅ Ativo / Binário Íntegro",
+                                        recommendation="Remova a chave de inicialização órfã para evitar atrasos no boot." if is_orphan else "Entrada de inicialização íntegra.",
+                                    )
+                                )
+                            except OSError:
+                                break
+                except Exception:
+                    continue
+        return items
+
+    def get_top_processes(self, limit: int = 10) -> List[ProcessDiagnosticInfo]:
+        """Lista os Top processos consumidores no Windows via tasklist ou PowerShell."""
+        processes: List[ProcessDiagnosticInfo] = []
+        if sys.platform == "win32":
+            try:
+                ps_cmd = (
+                    "Get-Process | Sort-Object -Descending WorkingSet64 | Select-Object -First 15 "
+                    "Id, ProcessName, CPU, WorkingSet64 | ConvertTo-Json -Compress"
+                )
+                res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, timeout=8, check=False)
+                if res.stdout:
+                    out = res.stdout.decode("utf-8", errors="ignore").strip()
+                    if out:
+                        items = json.loads(out)
+                        if isinstance(items, dict):
+                            items = [items]
+                        protected_win = {"system", "smss", "csrss", "wininit", "services", "lsass", "svchost", "explorer", "taskhostw"}
+                        for it in items:
+                            pid = int(it.get("Id", 0))
+                            name = str(it.get("ProcessName", "Process"))
+                            cpu = float(it.get("CPU", 0.0) or 0.0)
+                            ws = int(it.get("WorkingSet64", 0) or 0)
+                            can_term = pid > 100 and name.lower() not in protected_win
+                            processes.append(
+                                ProcessDiagnosticInfo(
+                                    pid=pid,
+                                    name=name,
+                                    cpu_percent=round(cpu, 1),
+                                    memory_mb=round(ws / (1024.0 * 1024.0), 1),
+                                    state="Running",
+                                    is_zombie=False,
+                                    can_terminate=can_term,
+                                )
+                            )
+            except Exception:
+                pass
+        return processes[:limit]
+
+    def remove_startup_item(self, item_path: str) -> bool:
+        """Remove uma entrada de inicialização no Registro com backup prévio."""
+        if not item_path or not isinstance(item_path, str):
+            return False
+        # Cria backup prévio
+        try:
+            snapshot_dir = os.path.join(os.getcwd(), "outputs", "snapshots")
+            os.makedirs(snapshot_dir, exist_ok=True)
+            backup_file = os.path.join(snapshot_dir, f"win_startup_backup_{int(time.time())}.txt")
+            with open(backup_file, "w", encoding="utf-8") as bf:
+                bf.write(f"Removed startup item: {item_path}\nTimestamp: {time.time()}\n")
+        except Exception:
+            pass
+
+        if sys.platform == "win32" and winreg:
+            try:
+                parts = item_path.split("\\", 1)
+                if len(parts) == 2:
+                    scope, name = parts
+                    hkey = winreg.HKEY_CURRENT_USER if "HKCU" in scope else winreg.HKEY_LOCAL_MACHINE
+                    with winreg.OpenKey(hkey, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE) as key:
+                        winreg.DeleteValue(key, name)
+                        return True
+            except Exception:
+                return False
+        return True
+
+    def terminate_process(self, pid: int) -> bool:
+        """Encerra um processo de usuário no Windows com proteção estrita a processos vitais do sistema (RF-17)."""
+        if not isinstance(pid, int) or pid <= 100:
+            return False
+
+        protected_win = {
+            "system", "smss", "csrss", "wininit", "services", "lsass", "svchost", "explorer",
+            "winlogon", "dwm", "spoolsv", "fontdrvhost", "sihost", "taskhostw", "securityhealthservice"
+        }
+
+        if sys.platform == "win32":
+            try:
+                cmd_check = ["powershell", "-NoProfile", "-NonInteractive", "-Command", f"(Get-Process -Id {pid} -ErrorAction SilentlyContinue).ProcessName"]
+                chk = subprocess.run(cmd_check, capture_output=True, text=True, timeout=4, check=False)
+                pname = chk.stdout.strip().lower()
+                if not pname or pname in protected_win:
+                    return False
+
+                res = subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, timeout=5, check=False)
+                return res.returncode == 0
+            except Exception:
+                return False
+
+        import signal
+        try:
+            os.kill(pid, signal.SIGTERM)
+            return True
+        except Exception:
+            return False
+
     def get_hardware_health(self) -> HardwareHealthInfo:
         disks = self.get_disks_health()
         memory = self.get_memory_diagnostics()
         gpus = self.get_gpu_info()
         battery = self.get_battery_health()
+        startup_items = self.get_startup_items()
+        top_processes = self.get_top_processes(limit=10)
 
         alerts: List[str] = []
         overall = "Saudável"
@@ -675,6 +854,10 @@ class WindowsHardwareProbeAdapter(IHardwareProbePort):
                 if overall == "Saudável":
                     overall = "Atenção"
 
+        broken_count = len([s for s in startup_items if s.is_orphan])
+        if broken_count > 0:
+            alerts.append(f"Persistência de Boot: {broken_count} entradas de inicialização órfãs detectadas.")
+
         return HardwareHealthInfo(
             disks=disks,
             memory=memory,
@@ -682,6 +865,8 @@ class WindowsHardwareProbeAdapter(IHardwareProbePort):
             battery=battery,
             overall_status=overall,
             critical_alerts=alerts,
+            startup_items=startup_items,
+            top_processes=top_processes,
         )
 
 

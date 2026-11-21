@@ -229,6 +229,74 @@ Este documento define o escopo funcional, critérios de aceite e restrições n�
 
 ---
 
+### RF-15: Varredura Profunda e Limpeza Cirúrgica para macOS Apple Silicon (Containers, Dev Ecosystems, Darwin Caches, APFS System Data & Bundle-ID Correlation)
+- **Descrição:** Maximizar a recuperação real e segura de espaço no macOS (Apple Silicon M1/M2/M3/M4 e Intel), eliminando os gargalos de varredura rasa e cobrindo caches de containers sandboxed, diretórios Darwin por usuário, ecossistemas modernos de desenvolvimento, dados do sistema ("System Data" / APFS Purgeable) e correlação precisa de resíduos órfãos por `CFBundleIdentifier`.
+- **Critérios de Aceite:**
+  1. **Expansão Cirúrgica do Catálogo de Limpeza Autônoma do macOS (`safe_cleanup_rules.json`):**
+     - Varredura segura de `~/Library/Caches/*` protegida por whitelist estrita de estados críticos (`CloudKit`, `com.apple.nsurlsessiond`, `com.apple.bird`, `com.apple.HomeKit`, `com.apple.Safari.SafeBrowsing`, `AudioUnitCache`, `PassKit`, `GeoServices`).
+     - Limpeza de caches e logs em Containers Sandboxed: `~/Library/Containers/*/Data/Library/Caches/*`, `~/Library/Containers/*/Data/Library/Logs/*`, `~/Library/Group Containers/*/Library/Caches/*`.
+     - Limpeza de caches temporários Darwin por usuário resolvidos via `getconf DARWIN_USER_CACHE_DIR` e `getconf DARWIN_USER_TEMP_DIR` (`/private/var/folders/.../C/` e `/T/`), removendo caches reconstruíveis de Metal shaders, Clang, QuickLook e ícones.
+     - Limpeza segmentada por ecossistema de desenvolvimento:
+       - **Xcode & Apple SDK:** `DerivedData`, `iOS DeviceSupport`, `watchOS DeviceSupport`, `tvOS DeviceSupport`, `Archives`, `CoreSimulator/Caches`, `com.apple.dt.Xcode`.
+       - **JetBrains & Android Studio:** `~/Library/Caches/JetBrains`, `~/Library/Logs/JetBrains`, `~/Library/Caches/Google/AndroidStudio*`.
+       - **Node.js / Frontend:** `~/.npm/_cacache`, `~/Library/Caches/Yarn`, `~/.yarn/berry/cache`, `~/Library/Caches/pnpm`, `~/.bun/install/cache`, `~/Library/Caches/Cypress`, `~/Library/Caches/ms-playwright`.
+       - **Python:** `~/Library/Caches/pip`, `~/.cache/pip`, `~/Library/Caches/uv`, `~/.cache/uv`, `~/Library/Caches/pypoetry`, `~/.cache/mypy`, `~/.cache/ruff`, `~/.cache/pytest`, `~/.cache/pre-commit`.
+       - **JVM / Mobile / Rust / Go:** `~/.gradle/caches`, `~/.cargo/registry/cache`, `~/Library/Caches/go-build`, `~/Library/Caches/CocoaPods`, `~/.pub-cache/_temp`.
+       - **Homebrew & Containers:** `~/Library/Caches/Homebrew`, `~/Library/Logs/Homebrew`, logs de Docker/OrbStack/Colima.
+  2. **Orçamento Adaptativo de Varredura BFS e Medição Física APFS (`st_blocks * 512`):**
+     - Elevar o orçamento da varredura `DiskScannerAdapter` de `2.500` para orçamento adaptativo de até `25.000` diretórios por execução, com medição rápida de pacotes fechados (`.app`, `node_modules`, `.git`, `.xcarchive`, `.simruntime`) de até `25.000` arquivos utilizando blocos físicos reais (`st_blocks * 512`) no macOS para evitar distorção de sparse files ou placeholders do iCloud.
+  3. **Escopo `SMART_FAST` Abrangente no macOS:**
+     - Incluir `~/Library/Developer`, `~/Library/Group Containers`, `~/Library/HTTPStorages`, `~/Library/WebKit`, `~/.cache`, `~/.npm`, `~/.gradle`, `~/.cargo`, `~/.orbstack`, `~/Library/Messages/Attachments` e `~/Library/Application Support/MobileSync/Backup` (classificando backups de iOS e anexos de mensagens para revisão consciente do usuário).
+  4. **Correlação Estruturada de Resíduos Órfãos (Inspirado no Pearcleaner):**
+     - Evitar a explosão de pacotes `com.apple.pkg.*` do `pkgutil` em tokens genéricos curtos de 3 letras que causavam falsos negativos.
+     - Correlacionar pastas de 12 subdiretórios da `~/Library` (`Application Support`, `Containers`, `Group Containers`, `Caches`, `Preferences`, `Saved Application State`, `HTTPStorages`, `WebKit`, `Logs`, `Cookies`, `Application Scripts`) por `CFBundleIdentifier` completo, prefixo Reverse-DNS e nome canônico do aplicativo.
+     - Não incluir `LaunchAgents` quebrados (cujo binário executável alvo não existe mais no disco) na Camada 3 de proteção, permitindo que seus resíduos órfãos sejam detectados.
+
+---
+
+### RF-16: Ganchos Interativos na Aplicação Web para Ações Diretas de Arquivo, Execução Granular e Gerenciamento de Pacotes
+- **Descrição:** Dotar o Dashboard Web local (`127.0.0.1`) de ganchos interativos em tempo real em todas as abas relevantes, permitindo ao usuário executar ações diretas de limpeza, quarentena na Lixeira, inspeção no Finder/Explorer e atualização de pacotes sem precisar reiniciar o fluxo ou usar o terminal manualmente.
+- **Critérios de Aceite:**
+  1. **Ação Direta sobre Arquivos e Pastas (`POST /api/file-action`):**
+     - Disponível para itens da **Aba 4 (Pastas Órfãs & Caches)** e da **Aba 5 (Top 100 Maiores Arquivos & Pastas + Drill-Down de Subpastas)** que não estejam classificados como `🚫 Não Apagar (Sistema Operacional)`.
+     - Suportar dois modos de remoção selecionáveis pelo usuário:
+       - **`trash` (Mover para a Lixeira — Padrão Seguro Recomendado):** Move o arquivo ou diretório para a Lixeira nativa do usuário (`~/.Trash` no macOS com resolução de colisão de nomes ou Lixeira do Windows) para fácil recuperação caso necessário.
+       - **`delete` (Exclusão Permanente):** Remove definitivamente utilizando o motor resiliente (`_clean_directory_contents` com desbloqueio `chmod`/`chflags nouchg`).
+     - Rejeitar com erro HTTP 403 qualquer tentativa de exclusão de caminhos protegidos pelo guardrail `is_safe_path_to_clean()` ou classificados como `DO_NOT_DELETE`.
+     - Atualizar reativamente o DOM (removendo a linha do item/subpasta apagada) e recalcular instantaneamente os contadores de espaço liberado no topo do Dashboard.
+  2. **Revelar no Finder / Windows Explorer (`POST /api/reveal-path`):**
+     - Botão `"📂 Abrir Local"` em cada linha das Abas 3, 4 e 5 que aciona `open -R <path>` no macOS ou `explorer.exe /select,<path>` no Windows para destacar o item no gerenciador de arquivos nativo.
+  3. **Execução Individual de Regra de Limpeza Autônoma (`POST /api/execute-rule`):**
+     - Na **Aba 2 (Limpeza Autônoma)**, exibir botão `"🧹 Limpar Agora"` para cada regra que tenha sido apenas simulada (`SIMULATED` em modo Dry-Run) ou que possua espaço recuperável, permitindo limpar aquela categoria específica sob demanda e atualizar seu status para `CLEANED` em tempo real.
+  4. **Ação Interativa de Atualização e Limpeza de Pacotes (`POST /api/upgrade-packages`):**
+     - Na **Aba 7 (Cloud & Atualizações)**, permitir acionar a atualização individual de um pacote (`brew upgrade <id>` / `winget upgrade --id <id>`) ou executar `brew cleanup --prune=all` no macOS diretamente pela interface web, exibindo o resultado em toast/log.
+
+---
+
+### RF-17: Telemetria Profunda de Saúde, Inspetor de Persistência/Processos e Motor Consultivo de Vida Útil (`Longevity Health Score 0–100`)
+- **Descrição:** Transformar o painel de Hardware e Saúde em um consultor interativo de conservação e longevidade da máquina, coletando telemetria nativa precisa de engenharia (IOKit/`ioreg` no Apple Silicon e WMI/CIM no Windows), auditando agentes de inicialização órfãos (`LaunchAgents` / `Startup`), inspecionando processos pesados/zumbis e fornecendo recomendações acionáveis em 1 clique.
+- **Critérios de Aceite:**
+  1. **Telemetria Profunda Apple Silicon & Windows:**
+     - **Bateria via IOKit (`ioreg -rn AppleSmartBattery -a`):** Extrair `CycleCount`, `DesignCapacity` (mAh), `RawMaxCapacity` (mAh), saúde calculada real (`%`), temperatura da bateria (`°C`), tensão (`mV`), corrente (`mA`), potência e estado de carga, eliminando falhas de parsing do `system_profiler`.
+     - **Memória Unificada & Swap Thrashing:** Ler `hw.pagesize` (`16384` bytes no Apple Silicon), calcular memória `Active`, `Wired`, `Compressed` e `Cached`, ler nível de pressão real do kernel (`kern.memorystatus_vm_pressure_level`) e monitorar contadores de `Pageouts`/`Swapouts`.
+     - **Storage APFS & Snapshots:** Extrair `Purgeable Space` (`diskutil info -plist /`) e contagem de snapshots locais do Time Machine (`tmutil listlocalsnapshots /`).
+  2. **Auditoria Interativa de Persistência e Inicialização (`LaunchAgents` / `LaunchDaemons` / `Windows Startup`):**
+     - Inspecionar todos os arquivos `.plist` em `~/Library/LaunchAgents`, `/Library/LaunchAgents` e `/Library/LaunchDaemons` (e chaves `HKCU/HKLM...\Run` no Windows).
+     - Extrair o caminho do binário alvo (`Program` ou `ProgramArguments[0]`) e verificar se o executável existe no disco (`target_exists`).
+     - Classificar itens com binário ausente como **Agente Órfão / Quebrado (Broken Startup Agent)** e disponibilizar endpoint `POST /api/startup-action` (com backup automático no diretório de snapshots) para remover ou desativar o agente órfão com 1 clique.
+  3. **Inspetor de Processos Pesados & Zumbis e Refresh Leve (`GET /api/live-health` & `POST /api/process-action`):**
+     - Listar os Top 10 processos consumidores de RAM e CPU (`ps -axo pid,ppid,stat,%cpu,%mem,rss,comm` no macOS / `tasklist` ou PowerShell `Get-Process` no Windows) e identificar processos zumbis (`stat` começando com `Z`).
+     - Permitir atualizar a telemetria de saúde em tempo real via `GET /api/live-health` (< 500ms, sem re-escanear o disco inteiro) e encerrar processos de usuário travados/pesados via `POST /api/process-action` (protegendo processos root/kernel do SO).
+  4. **Score de Saúde & Vida Útil (`Longevity Health Score 0–100`) e Consultor de Longevidade:**
+     - Calcular um score auditável de `0` a `100` composto por 4 pilares:
+       1. *Saúde de Armazenamento, Margem Livre NAND & Snapshots (35 pts)*
+       2. *Memória Unificada & Proteção contra Swap Thrashing no SSD (25 pts)*
+       3. *Higiene de Caches, Resíduos Órfãos & Persistência de Boot (20 pts)*
+       4. *Saúde Elétrica/Térmica (Bateria, Ciclos, Temperatura) & Atualizações (20 pts)*
+     - Gerar cartões de **Recomendações Acionáveis de Vida Útil** explicando: **(a) Diagnóstico Atual**, **(b) Impacto Físico na Vida Útil do Hardware** (ex: *Write Amplification* em células NAND flash, desgaste de TBW por swap contínuo, degradação química de Li-Ion) e **(c) Botão de Ação Direta 1-Clique** integrado aos ganchos da API local.
+
+---
+
 ## 2. Requisitos Não-Funcionais (RNF)
 
 ### RNF-01: Política Estrita Zero-Network & Zero-Telemetry (Privacidade Absoluta)

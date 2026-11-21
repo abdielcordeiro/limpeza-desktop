@@ -130,6 +130,52 @@ Este documento registra as decisões arquiteturais críticas do projeto **Limpez
   - Usuários recebem orientações educativas e precisas sobre a conservação física do computador, com risco zero de desgaste indevido ou degradação de SSDs/NVMes graças aos guardrails de 4 camadas e validação com o usuário.
   - Mantém adesão estrita ao **RNF-01 (Zero-Network Policy)** e **RNF-03 (Zero Dependências Pesadas)**.
 
+---
+
+## ADR-009: Engenharia Reversa Zero-Network do Ecossistema macOS (`Mole`, `Pearcleaner`, `mac-cleanup-py`, `Stats`, `OnyX`) e Motor de Varredura Adaptativa com Correlação por Bundle-ID
+- **Status:** Aceito
+- **Data:** 2026-11-20
+- **Contexto:**
+  Durante o diagnóstico de eficácia no macOS Apple Silicon (M1/M2/M3/M4), identificou-se que a varredura e limpeza inicial recuperava pouco espaço real devido a 5 limitações técnicas:
+  1. O catálogo `safe_cleanup_rules.json` possuía apenas 6 regras estáticas no macOS, deixando de limpar `~/Library/Caches/*` de forma abrangente, caches de containers sandboxed (`~/Library/Containers/*/Data/Library/Caches`), diretórios Darwin por usuário (`DARWIN_USER_CACHE_DIR` em `/private/var/folders/.../C/`) e ecossistemas pesados de desenvolvimento (Xcode DeviceSupport/Archives, JetBrains IDEs, CocoaPods, uv, Poetry, pnpm, Yarn Berry, Bun, Playwright, Go, Flutter).
+  2. O scanner `DiskScannerAdapter` possuía um limite rígido de `visited_dirs < 2500` no BFS e `_fast_dir_size(max_files=3000)`, truncando mais de 80% da árvore `~/Library` e subestimando tamanhos de pacotes grandes.
+  3. O método `get_homebrew_and_pkgutil()` dividia todos os pacotes `com.apple.pkg.*` em palavras curtas de 3 letras, gerando falsos negativos na detecção de pastas órfãs.
+  4. `LaunchAgents` órfãos (cujo binário apontado no `.plist` já havia sido desinstalado) continuavam sendo lidos pela Camada 3 como indicadores ativos, protegendo indevidamente pastas órfãs.
+  5. A leitura de bateria via `system_profiler SPPowerDataType` falhava ao converter strings com símbolo `%` (`"94%"`) em `float`.
+- **Decisão:**
+  1. **Transcrição Local Sanitizada (Zero-Network):** Incorporar as regras de limpeza profunda inspiradas no `tw93/Mole` e `mac-cleanup-py` em 15+ categorias cirúrgicas no `safe_cleanup_rules.json`, protegidas por uma Whitelist de Estado (`CloudKit`, `nsurlsessiond`, `HomeKit`, `AudioUnitCache`, `Keychain`) e resolução dinâmica segura de `getconf DARWIN_USER_CACHE_DIR` / `DARWIN_USER_TEMP_DIR`.
+  2. **Correlação Estruturada por `CFBundleIdentifier` e Auditoria de `LaunchAgents` (Inspirado no `Pearcleaner`):**
+     - Filtrar stopwords e pacotes base do sistema em `pkgutil`, correlacionando os 12 diretórios da `~/Library` por `CFBundleIdentifier`, prefixo Reverse-DNS e nome canônico.
+     - Inspecionar o binário executável (`Program` / `ProgramArguments[0]`) de cada `.plist` em `LaunchAgents`/`LaunchDaemons`: se o binário alvo não existir no disco, classificá-lo como **Agente de Inicialização Órfão** e excluí-lo da Camada 3 de proteção.
+  3. **Orçamento Adaptativo BFS e Blocos Físicos APFS (`st_blocks * 512`):**
+     - Expandir o orçamento do scanner para até `25.000` diretórios e `25.000` arquivos por bundle fechado, priorizando `st_blocks * 512` no macOS para refletir a ocupação física real no container APFS.
+  4. **Telemetria IOKit Direta (`ioreg -rn AppleSmartBattery -a`):**
+     - Coletar métricas de bateria via `ioreg` com `plistlib.loads` (< 15ms, 100% imune a formatação textual), `diskutil info -plist /` para `Purgeable Space` e `vm_stat` com `hw.pagesize` (`16384` bytes no Apple Silicon).
+- **Consequências:**
+  - Aumento expressivo na descoberta e recuperação segura de gigabytes no macOS Apple Silicon (Containers, Dev Caches, Darwin Caches e Órfãos), mantendo zero falsos positivos e 100% de conformidade com a política Zero-Network.
+
+---
+
+## ADR-010: Arquitetura de Ganchos Interativos Web (`127.0.0.1`), Quarentena Padrão via Lixeira e Motor Consultivo de Vida Útil (`Longevity Health Score`)
+- **Status:** Aceito
+- **Data:** 2026-11-20
+- **Contexto:**
+  O usuário precisava que a aplicação Web local (`127.0.0.1`) deixasse de ser apenas um relatório passivo nas Abas 2, 5, 7 e 8 e passasse a oferecer ganchos interativos completos para: (a) apagar ou mover para a Lixeira arquivos/pastas gigantes e subpastas diretamente da UI, (b) abrir a localização no Finder/Explorer, (c) executar regras individuais de limpeza após um Dry-Run, (d) remover `LaunchAgents` órfãos e encerrar processos pesados/zumbis, e (e) receber recomendações acionáveis sobre a saúde e vida útil da máquina.
+- **Decisão:**
+  1. **Novos Endpoints REST Estritamente Locais (`127.0.0.1`):**
+     - `POST /api/file-action`: Executa `trash` (move para `~/.Trash` / Recycle Bin como padrão seguro) ou `delete` (remoção permanente resiliente) para caminhos aprovados pelo guardrail `is_safe_path_to_clean()`, recalculando métricas e atualizando o DOM sem reload.
+     - `POST /api/reveal-path`: Abre o item no Finder (`open -R`) ou Windows Explorer (`explorer.exe /select,`).
+     - `POST /api/execute-rule`: Executa sob demanda uma única regra de limpeza autônoma da Aba 2.
+     - `GET /api/live-health`: Atualiza instantaneamente telemetria de RAM/Swap, Bateria, Processos, Startup Items e `Longevity Health Score` sem re-escanear o disco.
+     - `POST /api/startup-action`: Remove ou desativa `LaunchAgents` / itens de inicialização órfãos salvando backup prévio em `outputs/snapshots/`.
+     - `POST /api/process-action`: Encerra com segurança (`SIGTERM`) processos de usuário selecionados no inspetor, bloqueando processos críticos do SO (`PID <= 1`, `kernel_task`, `launchd`, `WindowServer`, `System`, `svchost`, `csrss`, `lsass`).
+     - `POST /api/upgrade-packages`: Executa `brew upgrade` / `brew cleanup` ou `winget upgrade` sob ação explícita do usuário na Aba 7.
+  2. **Motor Consultivo `Longevity Health Score (0–100)`:**
+     - Computar score determinístico em 4 pilares (Armazenamento/NAND 35%, Memória/Swap 25%, Higiene/Boot 20%, Bateria/Térmica 20%) acompanhado de cartões `LongevityRecommendation` com botão de ação 1-clique integrado aos endpoints acima.
+- **Consequências:**
+  - Experiência de painel de controle desktop completo, reativo e seguro, com quarentena nativa via Lixeira e proteção estrita contra exclusão de arquivos do sistema operacional.
+
+
 
 
 
