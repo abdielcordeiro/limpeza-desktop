@@ -154,3 +154,148 @@ flowchart LR
 | **RF-15** (Limpeza Cirúrgica macOS, Containers, Darwin Caches, Dev Ecosystems, BFS 25k & Bundle-ID Correlation) | **ADR-009** | `src/infrastructure/catalogs/safe_cleanup_rules.json`<br/>`src/infrastructure/filesystem/autonomous_cleaner.py`<br/>`src/infrastructure/filesystem/disk_scanner.py`<br/>`src/infrastructure/macos/platform_adapter.py`<br/>`src/application/orchestrator.py` | `tests/test_cleaner_and_scanner.py`<br/>`tests/test_macos_deep_clean_and_webhooks.py`<br/>`tests/test_security_and_edge_cases.py` |
 | **RF-16** (Ganchos Interativos Web: `/api/file-action`, `/api/reveal-path`, `/api/execute-rule`, `/api/upgrade-packages`, Quarentena na Lixeira) | **ADR-010** | `src/presentation/window/local_server.py`<br/>`src/presentation/reporters/html_reporter.py`<br/>`src/application/orchestrator.py`<br/>`src/infrastructure/filesystem/autonomous_cleaner.py` | `tests/test_report_and_server.py`<br/>`tests/test_macos_deep_clean_and_webhooks.py`<br/>`tests/test_security_and_edge_cases.py` |
 | **RF-17** (Telemetria IOKit `ioreg`, Auditor de `LaunchAgents` Órfãos, Inspetor de Processos e `Longevity Health Score 0–100`) | **ADR-009**<br/>**ADR-010** | `src/domain/entities.py`<br/>`src/domain/ports.py`<br/>`src/infrastructure/macos/platform_adapter.py`<br/>`src/infrastructure/windows/platform_adapter.py`<br/>`src/application/orchestrator.py`<br/>`src/presentation/reporters/html_reporter.py` | `tests/test_hardware_and_storage_optimization.py`<br/>`tests/test_macos_deep_clean_and_webhooks.py`<br/>`tests/test_privacy_audit.py` |
+| **RF-18** (Raio-X Real das Categorias Ocultas de Armazenamento: "Documentos 18,67 GB" & "Dados do Sistema 148,52 GB", Pastas Ocultas `~/.*`, Artefatos Reconstruíveis de Projetos `node_modules`/`.venv`/`target`/`build` e Ativação Padrão de Caches Dev) | **ADR-011** | `src/domain/entities.py`<br/>`src/domain/ports.py`<br/>`src/infrastructure/catalogs/safe_cleanup_rules.json`<br/>`src/infrastructure/filesystem/autonomous_cleaner.py`<br/>`src/infrastructure/filesystem/disk_scanner.py`<br/>`src/application/orchestrator.py`<br/>`src/presentation/reporters/html_reporter.py` | `tests/test_cleaner_and_scanner.py`<br/>`tests/test_macos_deep_clean_and_webhooks.py` |
+| **RF-19** (Explorador Interativo de Árvore de Diretórios Sob Demanda `POST /api/inspect-directory` com Drill-Down Infinito) | **ADR-011** | `src/domain/entities.py`<br/>`src/domain/ports.py`<br/>`src/infrastructure/filesystem/disk_scanner.py`<br/>`src/application/orchestrator.py`<br/>`src/presentation/window/local_server.py`<br/>`src/presentation/reporters/html_reporter.py` | `tests/test_report_and_server.py`<br/>`tests/test_security_guardrails_audit.py` |
+
+---
+
+## 6. Plano Cirúrgico de Execução V2 (Para Subagente Flash 3.8 High) — Desvendando os `18,67 GB` de "Documentos" e os `148,52 GB` de "Dados do Sistema" (RF-18 & RF-19 / ADR-011)
+
+### 6.1. Diagnóstico de Causa-Raiz da Imagem (`219,68 GB / 245,11 GB usados`)
+
+1. **Por que o macOS marca `18,67 GB` em "Documentos", mas o navegador nativo do macOS não mostra onde estão?**
+   - O daemon `storagekitd` do macOS contabiliza em **"Documentos"** tudo o que reside em `/Users/<usuario>` (`~`) fora de `~/Library`, Fotos, Mail e Mensagens.
+   - Entretanto, a janela nativa do macOS (botão `ⓘ` em Documentos) **oculta 100% dos diretórios ocultos (`~/.*`)** (`~/.gemini`, `~/.cursor`, `~/.vscode`, `~/.ollama`, `~/.lmstudio`, `~/.docker`, `~/.orbstack`, `~/.nvm`, `~/.pyenv`, `~/.sdkman`, `~/.rustup`, `~/.cargo`, `~/.m2`, `~/.gradle`, `~/.npm`, `~/.bun`, `~/.pub-cache`, `~/.cocoapods`, `~/.android`, `~/.local`, `~/.config`) e não agrega pastas de projetos (`~/IdeaProjects`, `~/Projects`, `~/Documents`, `~/Desktop`) formadas por milhares de arquivos pequenos (`node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.next`, `dist`, `.git`).
+   - **Por que nosso app não trouxe isso antes?** Em [`src/application/orchestrator.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/application/orchestrator.py#L197-L218), o escopo padrão `SMART_FAST` possuía uma lista estática que **não incluía `~/Documents`, `~/Desktop`, `~/IdeaProjects` nem a descoberta dinâmica das pastas ocultas `~/.*`**!
+2. **Por que os `148,52 GB` de "Dados do Sistema" (`System Data`) ficavam numa caixa-preta e a remoção evoluiu pouco?**
+   - Em [`src/infrastructure/catalogs/safe_cleanup_rules.json`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/infrastructure/catalogs/safe_cleanup_rules.json#L244-L359), as regras de maior impacto para desenvolvedores (`mac_jetbrains_caches`, `mac_node_js_caches`, `mac_python_dev_caches`, `mac_jvm_native_mobile_caches`, `win_dev_caches`) estavam com `"default_enabled": false`!
+   - Em [`src/infrastructure/filesystem/autonomous_cleaner.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/infrastructure/filesystem/autonomous_cleaner.py#L891), `execute_rule()` chamava `_clean_directory_contents(expanded, mode=mode, remove_root=False)` mesmo quando `expanded` vinha de um wildcard (`~/Library/Caches/*`), deixando subpastas vazias e não limpando `@DARWIN_USER_CACHE_DIR@/*` nem múltiplos perfis (`Profile *`) de navegadores.
+   - Em [`src/infrastructure/filesystem/disk_scanner.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/infrastructure/filesystem/disk_scanner.py#L462), `node_modules` e artefatos de build eram medidos com `_fast_dir_size()`, mas **não eram adicionados em `clean_candidates`**, e a deduplicação pai-filho com `sub_occupants[:5]` de apenas 1 nível impedia o usuário de explorar subpastas profundas.
+
+---
+
+### 6.2. Roteiro Exato de Implementação Passo a Passo (Blueprint para Flash 3.8 High)
+
+#### Passo 1: Novas Entidades de Raio-X e Inspeção de Diretório em [`src/domain/entities.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/domain/entities.py) e [`src/domain/ports.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/domain/ports.py)
+1. Em `src/domain/entities.py`, adicionar:
+   - **`DirectoryInspectionNode`**:
+     - `name: str`, `path: str`, `size: int`, `size_formatted: str`, `percent_of_parent: float`, `item_type: str` (`"Pasta"` | `"Arquivo"`), `is_hidden: bool`, `safety_action: str`, `safety_badge: str`, `safety_recommendation: str`, `can_delete: bool`, `children_count: int = 0`.
+     - Método `to_dict() -> Dict[str, Any]`.
+   - **`StorageCategoryBreakdown`** (representa uma fatia do Raio-X, ex: *"Pastas Ocultas na Home (`~/.*` — Espaço Fantasma de Documentos)"*, *"Projetos & Pastas Visíveis (`~/Documents`, `~/IdeaProjects`)"*, *"Artefatos Reconstruíveis de Projetos (`node_modules`, `.venv`, `target`, `build`)"*, *"Containers, VMs & Docker/OrbStack"*, *"Application Support & IDEs"*, *"Caches & Subsistema Darwin"*, *"SDKs, Simuladores & Toolchains"*, *"Homebrew & Package Stores Globais"*, *"Modelos de IA & Agentes Locais"*, *"Swap, Memória Virtual & Snapshots APFS"*):
+     - `category_id: str`
+     - `title: str`
+     - `os_equivalent: str` (`"Documentos (macOS Storage)"` ou `"Dados do Sistema / System Data"`)
+     - `total_bytes: int`
+     - `total_formatted: str`
+     - `description: str`
+     - `why_os_hides_it: str`
+     - `top_items: List[Dict[str, Any]] = field(default_factory=list)` (lista dos maiores diretórios/arquivos dentro desta categoria com `name`, `path`, `size`, `size_formatted`, `safety_action`, `safety_badge`, `can_delete`).
+     - Método `to_dict() -> Dict[str, Any]`.
+   - **`StorageXRayReport`**:
+     - `documents_total_bytes: int = 0`
+     - `documents_visible_bytes: int = 0`
+     - `documents_hidden_dotfiles_bytes: int = 0`
+     - `documents_rebuildable_artifacts_bytes: int = 0`
+     - `system_data_tracked_bytes: int = 0`
+     - `categories: List[StorageCategoryBreakdown] = field(default_factory=list)`
+     - Properties formatadas (`documents_total_formatted`, `documents_visible_formatted`, `documents_hidden_dotfiles_formatted`, `documents_rebuildable_artifacts_formatted`, `system_data_tracked_formatted`) e `to_dict()`.
+   - Em **`SystemExecutionReport`**:
+     - Adicionar campo opcional `storage_xray: Optional[StorageXRayReport] = None` e serializá-lo em `to_dict()["storage_xray"]`.
+2. Em `src/domain/ports.py` (`IDiskScannerPort`):
+   - Adicionar métodos:
+     - `build_storage_xray(os_platform: OSPlatform, partitions: List[PartitionInfo], hardware_health: Optional[HardwareHealthInfo] = None) -> StorageXRayReport`
+     - `inspect_directory(dir_path: str, os_platform: OSPlatform, max_items: int = 30) -> Dict[str, Any]`
+
+#### Passo 2: Catálogo `safe_cleanup_rules.json` e Limpeza Efetiva em `autonomous_cleaner.py`
+1. Em [`src/infrastructure/catalogs/safe_cleanup_rules.json`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/infrastructure/catalogs/safe_cleanup_rules.json):
+   - Mudar `"default_enabled": true` para:
+     - `mac_jetbrains_caches`
+     - `mac_node_js_caches` (incluindo também `~/Library/pnpm/store/v3/tmp`, `~/.npm/_logs`)
+     - `mac_python_dev_caches`
+     - `mac_jvm_native_mobile_caches` (incluindo também `~/.gradle/caches`, `~/.gradle/daemon`, `~/.m2/repository/.cache`)
+     - `win_dev_caches`
+   - Em `mac_darwin_user_caches`: adicionar `"@DARWIN_USER_CACHE_DIR@/*"` para limpar todos os caches Darwin por usuário reconstruíveis (respeitando `PROTECTED_MACOS_CACHE_PATTERNS`).
+   - Em `mac_browser_electron_cache`: adicionar suporte a múltiplos perfis Chromium (`~/Library/Caches/Google/Chrome/*/Cache`, `~/Library/Caches/Google/Chrome/*/Code Cache`, `~/Library/Application Support/Google/Chrome/*/Service Worker/CacheStorage`, `~/Library/Application Support/Google/Chrome/*/GPUCache`, `~/Library/Caches/BraveSoftware/Brave-Browser/*/Cache`, `~/Library/Application Support/Windsurf/Cache/Cache_Data`, `~/Library/Application Support/Windsurf/CachedData`, `~/Library/Application Support/Antigravity/Cache/Cache_Data`, `~/Library/Application Support/Antigravity/Code Cache`, `~/Library/Application Support/Postman/proxy`).
+2. Em [`src/infrastructure/filesystem/autonomous_cleaner.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/infrastructure/filesystem/autonomous_cleaner.py):
+   - Em `execute_rule()` (linha 891): quando `has_wildcard=True` (ex: `~/Library/Caches/*` ou `@DARWIN_USER_CACHE_DIR@/*`), passar `remove_root=True` para `_clean_directory_contents(expanded, mode=mode, remove_root=has_wildcard)` para que as subpastas de cache expandidas pelo wildcard sejam efetivamente removidas por completo (e não deixadas como esqueletos de diretórios vazios).
+   - Em `_clean_directory_contents()`: ao medir arquivos no macOS, se `os.path.islink(fpath)` apontar para um arquivo de cache real ou arquivo normal, contabilizar corretamente e continuar garantindo proteção total a raízes do usuário via `is_safe_path_to_clean()`.
+
+#### Passo 3: Varredura Completa da Home (`~`), Detecção de Artefatos Reconstruíveis (`node_modules`, `.venv`, `target`, `build`) e Motor de Raio-X em `disk_scanner.py` e `orchestrator.py`
+1. Em [`src/application/orchestrator.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/application/orchestrator.py#L192-L219) (`_resolve_scan_targets`):
+   - No modo `SMART_FAST` (macOS e Windows), descobrir dinamicamente **todos os diretórios de 1º nível dentro de `~` (`os.path.expanduser("~")`)** (excluindo apenas `~/Library` como raiz única pois `~/Library` já tem seus subdiretórios-chave listados e `~/.Trash` para evitar prompt TCC desnecessário no scan), garantindo que:
+     - `~/Documents`, `~/Desktop`, `~/Downloads`, `~/IdeaProjects`, `~/Projects`, `~/Developer`, `~/Workspace`, `~/Movies`, `~/Music`, `~/Pictures` sejam SEMPRE escaneados!
+     - Todos os `dot-folders` existentes em `~` (`~/.gemini`, `~/.cursor`, `~/.vscode`, `~/.ollama`, `~/.lmstudio`, `~/.docker`, `~/.orbstack`, `~/.colima`, `~/.nvm`, `~/.pyenv`, `~/.sdkman`, `~/.rustup`, `~/.cargo`, `~/.m2`, `~/.gradle`, `~/.npm`, `~/.bun`, `~/.pub-cache`, `~/.cocoapods`, `~/.android`, `~/.local`, `~/.config`, `~/.cache`, etc.) sejam SEMPRE escaneados!
+     - Também incluir `/Library/Developer` e `/opt/homebrew` (se existirem) na análise de ocupantes/Raio-X!
+2. Em [`src/infrastructure/filesystem/disk_scanner.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/infrastructure/filesystem/disk_scanner.py):
+   - Definir conjunto de **Artefatos Reconstruíveis de Projeto**:
+     `REBUILDABLE_PROJECT_ARTIFACTS = {"node_modules", ".venv", "venv", "target", "build", ".dart_tool", ".next", ".nuxt", "dist", "pods", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".Parcel-cache", ".turbo", "deriveddata"}`
+   - No loop BFS de `scan_and_evaluate()` (linha 462):
+     - Quando `dir_base in REBUILDABLE_PROJECT_ARTIFACTS` (ou `dir_base.endswith((".app", ".xcarchive", ".simruntime"))` ou `dir_base == ".git"`):
+       - Medir `agg_size = _fast_dir_size(current_dir, max_files=self.max_bundle_files)` e propagar `agg_size` para `folder_sizes[current_dir]` e seus ancestrais (`for parent in path_obj.parents`).
+       - **NOVO:** Se `dir_base in REBUILDABLE_PROJECT_ARTIFACTS` e `agg_size >= max(self.min_orphan_bytes, 5 * 1024 * 1024)` (ou `>= self.min_orphan_bytes` para respeitar testes parametrizados) e o caminho não estiver dentro de `/Applications/*.app` ou `/System`:
+         - Adicionar um `CleanableItem` em `clean_candidates` com:
+           - `name= f"{os.path.basename(os.path.dirname(current_dir))}/{os.path.basename(current_dir)}"`
+           - `path=current_dir`
+           - `item_type="Artefato Reconstruível de Projeto (Build / Dependências)"`
+           - `risk_level="Seguro / Reconstruível (npm install / pip / build)"`
+           - `risk_badge="info"`
+           - `reason=f"Diretório '{os.path.basename(current_dir)}' dentro do projeto '{os.path.basename(os.path.dirname(current_dir))}'. Ocupa espaço na categoria 'Documentos' do macOS e pode ser recriado a qualquer momento."`
+           - `how_to_fix="Mova para a Lixeira ou exclua se não estiver trabalhando ativamente neste projeto agora."`
+           - `is_orphan=False`
+   - Expandir `sub_occupants` de `direct_children[:5]` para `direct_children[:12]` e incluir campos `safety_action`, `safety_badge` e `can_delete` em cada sub-ocupante.
+   - Implementar **`build_storage_xray(os_platform, partitions, hardware_health)`** em `DiskScannerAdapter`:
+     - Escaneia de forma rápida e direcionada as raízes que compõem **"Documentos (`~` fora de `~/Library`)"** e **"Dados do Sistema (`~/Library`, `/Library`, `/opt/homebrew`, `/private/var/vm`, `@DARWIN_USER_CACHE_DIR@`)"**:
+       1. **Categoria 1 (`doc_visible_projects`) — Pastas Visíveis & Projetos na Home (`~/Documents`, `~/IdeaProjects`, `~/Desktop`, `~/Downloads`, etc.):** lista cada pasta visível em `~` (exceto `Library` e `Applications`) com seu tamanho real, percentual e top subpastas.
+       2. **Categoria 2 (`doc_hidden_dotfiles`) — Pastas Ocultas na Raiz do Usuário (`~/.*` — "O Espaço Fantasma de Documentos"):** mede todas as pastas iniciadas com `.` em `~` (exceto `.Trash`), explicando claramente: *"O Ajustes do Sistema do macOS soma estas pastas ocultas dentro da categoria 'Documentos' (seus 18,67 GB), mas o Finder e o navegador de armazenamento da Apple as escondem por começarem com ponto (.)."*
+       3. **Categoria 3 (`doc_rebuildable_artifacts`) — Dependências & Builds Reconstruíveis em Projetos (`node_modules`, `.venv`, `target`, `build`, `.dart_tool`):** soma todos os artefatos de build encontrados nos projetos do usuário.
+       4. **Categoria 4 (`sys_containers_vms`) — Containers Sandboxed, Docker, OrbStack & VMs (`~/Library/Containers`, `Group Containers`, `~/.orbstack`, `~/.docker`):** lista os maiores containers (WhatsApp, Docker, Xcode, Slack, Telegram, etc.).
+       5. **Categoria 5 (`sys_app_support`) — Application Support, IDEs & Bancos de Estado (`~/Library/Application Support`):** lista os maiores diretórios (`Code`, `Cursor`, `JetBrains`, `Google/Chrome`, `MobileSync/Backup`, etc.).
+       6. **Categoria 6 (`sys_caches_darwin`) — Caches de Usuário, Logs & Subsistema Darwin (`~/Library/Caches`, `~/Library/Logs`, `@DARWIN_USER_CACHE_DIR@`):** lista os maiores caches.
+       7. **Categoria 7 (`sys_dev_toolchains_pkgs`) — SDKs, Simuladores, Homebrew & Stores de Pacotes (`~/Library/Developer`, `/Library/Developer`, `/opt/homebrew`, `~/Library/pnpm`, `~/Library/Android`):** mede Xcode, CoreSimulator Devices/Images, Homebrew Cellar/Caskroom, Android SDK, pnpm store.
+       8. **Categoria 8 (`sys_vm_snapshots_ai`) — Memória Virtual/Swap, Snapshots APFS, Espaço Purgável & Modelos Locais de IA (`/private/var/vm`, `PurgeableSpace`, `~/.ollama`, `~/.lmstudio`, `~/.cache/huggingface`):** mostra exatamente quanto do "Dados do Sistema" é Swap/Sleepimage + Espaço Purgável APFS + Modelos LLM.
+   - Implementar **`inspect_directory(dir_path, os_platform, max_items=30)`** em `DiskScannerAdapter`:
+     - Valida caminho seguro (sem `..` ou `\x00`, existe e `os.path.isdir(dir_path)`).
+     - Itera com `os.scandir(dir_path)` listando todas as subpastas e arquivos imediatos, calculando tamanho físico (`_fast_dir_size(entry.path, max_files=12000)` para pastas e `_effective_file_size` para arquivos).
+     - Ordena por `size` decrescente, calcula `percent_of_parent`, classifica com `classify_item_safety` e define `can_delete = is_safe_path_to_clean(entry.path) and safety_action != SafetyClassification.DO_NOT_DELETE.value`.
+     - Retorna dicionário com `current_path`, `parent_path`, `name`, `total_bytes`, `total_formatted`, `items: [DirectoryInspectionNode.to_dict(), ...]`.
+
+#### Passo 4: Novo Endpoint `POST /api/inspect-directory` em [`src/presentation/window/local_server.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/presentation/window/local_server.py) e Método no [`OrchestratorService`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/application/orchestrator.py)
+1. Em `OrchestratorService`:
+   - Durante `execute_plan()`, chamar `storage_xray = self.scanner.build_storage_xray(plan.os_platform, final_partitions, hardware_health)` e anexar ao `SystemExecutionReport(storage_xray=storage_xray)`.
+   - Adicionar método `inspect_directory(target_path: str, max_items: int = 30) -> Dict[str, Any]` que delega para `self.scanner.inspect_directory(...)`.
+2. Em `LocalControlPanelServer.dispatch_request()` (`src/presentation/window/local_server.py`):
+   - Adicionar rota **`POST /api/inspect-directory`**:
+     - Recebe `{"path": "...", "max_items": 30}`.
+     - Rejeita com HTTP `400` se `path` vazio, contiver `\x00` ou segmento `..`.
+     - Chama `self.orchestrator.inspect_directory(target_path, max_items=max_items)` e retorna `200` com o JSON da árvore daquela pasta.
+
+#### Passo 5: Nova Seção "🔍 Raio-X Real do Armazenamento (Desvendando 'Documentos' & 'Dados do Sistema') + Explorador de Pastas Interativo" no Dashboard HTML ([`src/presentation/reporters/html_reporter.py`](file:///Users/abdielcordeiro/IdeaProjects/limpeza-desktop/src/presentation/reporters/html_reporter.py))
+1. Na **Aba 1 (`tab-overview`)**, logo abaixo dos cards de Partições e antes do Log de Auditoria:
+   - Renderizar o painel **"🔍 Raio-X Real do Armazenamento: O Que Está Ocupando 'Documentos' e 'Dados do Sistema'"**:
+     - **3 KPIs de Destaque no Topo do Raio-X:**
+       1. `📄 Total Real na Pasta Pessoal (~ / "Documentos" do macOS)`: exibe `documents_total_formatted`, dividindo em:
+          - `Pastas Visíveis & Projetos`: `documents_visible_formatted`
+          - `👻 Pastas Ocultas (~/.* invisíveis no Ajustes do macOS)`: `documents_hidden_dotfiles_formatted`
+          - `🧱 Builds & node_modules/.venv Reconstruíveis`: `documents_rebuildable_artifacts_formatted`
+       2. `⚙️ Total Mapeado em "Dados do Sistema" (System Data)`: exibe `system_data_tracked_formatted`
+       3. `🧹 Potencial Imediato Recuperável`: `REPORT_DATA.potential_extra_bytes_formatted`
+     - **Grid dos 8 Cards de Categorias do Raio-X (`REPORT_DATA.storage_xray.categories`):**
+       - Cada card mostra o título da categoria, badge indicando se o macOS classifica aquilo como `Documentos` ou `Dados do Sistema`, tamanho total formatado, explicação de *por que o macOS esconde ou acumula aquilo*, e a lista dos **Top Diretórios Culpados** dentro daquela categoria.
+       - Em cada diretório listado nos cards do Raio-X, exibir 3 botões de ação direta:
+         - `🔍 Explorar Pasta` (abre o **Modal / Painel Explorador de Árvore Interativo** chamando `inspectDirectory(path)`)
+         - `📂 Finder/Explorer` (`revealPath(path)`)
+         - `🗑️ Lixeira` (`fileAction(path, 'trash')`, exibido apenas quando `can_delete === true`)
+2. **Explorador Interativo de Árvore de Diretórios (Drill-Down Infinito — `inspectDirectory(path)`):**
+   - Criar na Aba 1 (e acessível de qualquer botão `🔍 Explorar` da Aba 1 e Aba 5) um painel/modal interativo **"📂 Explorador Cirúrgico de Diretórios (Drill-Down Nivel a Nível)"**:
+     - Exibe **Breadcrumb clicável** do caminho atual (ex: `/Users` > `abdielcordeiro` > `IdeaProjects` > `projeto-x`) + botão `⬆️ Subir um Nível`.
+     - Lista todas as subpastas e arquivos daquela pasta ordenados do maior para o menor tamanho, com barra proporcional (`%`), badge de classificação (`🚫 Não Apagar`, `✅ Limpeza Direta`, `⚠️ Avaliar Conteúdo Pessoal`, `⚙️ Desinstalar`), botão `🔍 Entrar na Pasta` (para continuar descendo quantos níveis quiser!), botão `📂 Abrir Local`, botão `🗑️ Lixeira` e botão `🔥 Excluir`.
+     - Ao mover um item para a Lixeira ou excluí-lo dentro do Explorador, remove a linha reativamente e recalcula o diretório!
+
+#### Passo 6: Testes Automatizados e Auditoria Zero-Network (`tests/`)
+- Adicionar testes unitários cobrindo:
+  1. `DiskScannerAdapter.build_storage_xray()` validando a separação exata entre pastas visíveis (`~/Documents`, `~/IdeaProjects`), pastas ocultas (`~/.gemini`, `~/.gradle`, etc.) e categorias de `Dados do Sistema`.
+  2. Detecção de `node_modules`, `.venv`, `target`, `build` como `CleanableItem` do tipo `"Artefato Reconstruível de Projeto (Build / Dependências)"`.
+  3. `DiskScannerAdapter.inspect_directory()` e endpoint `POST /api/inspect-directory` (com proteção contra path traversal `..` e ordenação decrescente por tamanho).
+  4. `AutonomousCleanerAdapter.execute_rule()` com `remove_root=True` em alvos de wildcard (`/*`) e verificação de `default_enabled=True` nas regras de cache de desenvolvimento em `safe_cleanup_rules.json`.
+  5. Validação `node --check` no JS gerado pelo `html_reporter.py` e `tests/test_privacy_audit.py` 100% verde.
+

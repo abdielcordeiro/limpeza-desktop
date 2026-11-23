@@ -2,7 +2,7 @@
 """Entidades puras da camada de Domínio."""
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
-from .value_objects import format_bytes
+from .value_objects import format_bytes, format_bytes_si, format_bytes_binary
 
 
 @dataclass
@@ -20,24 +20,81 @@ class PartitionInfo:
     health_class: str
     health_desc: str
     filesystem: str = "APFS/NTFS"
+    purgeable_bytes: int = 0
+    raw_used_bytes: int = 0
+    raw_free_bytes: int = 0
+    use_si_units: bool = False
+
+    def _fmt(self, val: int) -> str:
+        return format_bytes_si(val) if self.use_si_units else format_bytes(val)
 
     @property
     def total_formatted(self) -> str:
-        return format_bytes(self.total_bytes)
+        return self._fmt(self.total_bytes)
 
     @property
     def used_formatted(self) -> str:
-        return format_bytes(self.used_bytes)
+        return self._fmt(self.used_bytes)
 
     @property
     def free_formatted(self) -> str:
-        return format_bytes(self.free_bytes)
+        return self._fmt(self.free_bytes)
+
+    @property
+    def purgeable_formatted(self) -> str:
+        return self._fmt(self.purgeable_bytes)
+
+    @property
+    def raw_used_formatted(self) -> str:
+        return self._fmt(self.raw_used_bytes if self.raw_used_bytes > 0 else self.used_bytes)
+
+    @property
+    def raw_free_formatted(self) -> str:
+        return self._fmt(self.raw_free_bytes if self.raw_free_bytes > 0 else self.free_bytes)
+
+    @property
+    def total_si_formatted(self) -> str:
+        return format_bytes_si(self.total_bytes)
+
+    @property
+    def used_si_formatted(self) -> str:
+        return format_bytes_si(self.used_bytes)
+
+    @property
+    def free_si_formatted(self) -> str:
+        return format_bytes_si(self.free_bytes)
+
+    @property
+    def total_binary_formatted(self) -> str:
+        return format_bytes_binary(self.total_bytes)
+
+    @property
+    def used_binary_formatted(self) -> str:
+        return format_bytes_binary(self.used_bytes)
+
+    @property
+    def free_binary_formatted(self) -> str:
+        return format_bytes_binary(self.free_bytes)
+
+    @property
+    def raw_used_binary_formatted(self) -> str:
+        return format_bytes_binary(self.raw_used_bytes if self.raw_used_bytes > 0 else self.used_bytes)
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
         data["total_formatted"] = self.total_formatted
         data["used_formatted"] = self.used_formatted
         data["free_formatted"] = self.free_formatted
+        data["purgeable_formatted"] = self.purgeable_formatted
+        data["raw_used_formatted"] = self.raw_used_formatted
+        data["raw_free_formatted"] = self.raw_free_formatted
+        data["total_si_formatted"] = self.total_si_formatted
+        data["used_si_formatted"] = self.used_si_formatted
+        data["free_si_formatted"] = self.free_si_formatted
+        data["total_binary_formatted"] = self.total_binary_formatted
+        data["used_binary_formatted"] = self.used_binary_formatted
+        data["free_binary_formatted"] = self.free_binary_formatted
+        data["raw_used_binary_formatted"] = self.raw_used_binary_formatted
         return data
 
 
@@ -258,24 +315,65 @@ class StorageDiskHealth:
     free_bytes: int = 0
     purgeable_bytes: int = 0
     apfs_snapshots_count: int = 0
+    used_bytes: int = 0
+    raw_used_bytes: int = 0
+    raw_free_bytes: int = 0
+    use_si_units: bool = False
+
+    def _fmt(self, val: int) -> str:
+        return format_bytes_si(val) if self.use_si_units else format_bytes(val)
 
     @property
     def total_formatted(self) -> str:
-        return format_bytes(self.total_bytes) if self.total_bytes else ""
+        return self._fmt(self.total_bytes) if self.total_bytes else ""
 
     @property
     def free_formatted(self) -> str:
-        return format_bytes(self.free_bytes) if self.free_bytes else ""
+        return self._fmt(self.free_bytes) if self.free_bytes else ""
+
+    @property
+    def used_formatted(self) -> str:
+        eff_used = self.used_bytes if self.used_bytes > 0 else max(0, self.total_bytes - self.free_bytes)
+        return self._fmt(eff_used) if self.total_bytes else ""
 
     @property
     def purgeable_formatted(self) -> str:
-        return format_bytes(self.purgeable_bytes) if self.purgeable_bytes else "0.00 B"
+        return self._fmt(self.purgeable_bytes) if self.purgeable_bytes else "0.00 B"
+
+    @property
+    def raw_used_formatted(self) -> str:
+        raw_u = self.raw_used_bytes if self.raw_used_bytes > 0 else max(0, self.total_bytes - self.free_bytes)
+        return self._fmt(raw_u) if self.total_bytes else ""
+
+    @property
+    def raw_free_formatted(self) -> str:
+        raw_f = self.raw_free_bytes if self.raw_free_bytes > 0 else self.free_bytes
+        return self._fmt(raw_f) if self.total_bytes else ""
+
+    @property
+    def total_binary_formatted(self) -> str:
+        return format_bytes_binary(self.total_bytes) if self.total_bytes else ""
+
+    @property
+    def used_binary_formatted(self) -> str:
+        eff_used = self.used_bytes if self.used_bytes > 0 else max(0, self.total_bytes - self.free_bytes)
+        return format_bytes_binary(eff_used) if self.total_bytes else ""
+
+    @property
+    def free_binary_formatted(self) -> str:
+        return format_bytes_binary(self.free_bytes) if self.free_bytes else ""
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
         data["total_formatted"] = self.total_formatted
         data["free_formatted"] = self.free_formatted
+        data["used_formatted"] = self.used_formatted
         data["purgeable_formatted"] = self.purgeable_formatted
+        data["raw_used_formatted"] = self.raw_used_formatted
+        data["raw_free_formatted"] = self.raw_free_formatted
+        data["total_binary_formatted"] = self.total_binary_formatted
+        data["used_binary_formatted"] = self.used_binary_formatted
+        data["free_binary_formatted"] = self.free_binary_formatted
         return data
 
 
@@ -487,6 +585,88 @@ class HardwareHealthInfo:
 
 
 @dataclass
+class DirectoryInspectionNode:
+    """Nó representando uma subpasta ou arquivo retornado pelo inspetor sob demanda (RF-19)."""
+    name: str
+    path: str
+    size: int
+    size_formatted: str
+    percent_of_parent: float
+    item_type: str  # "Pasta" | "Arquivo"
+    is_hidden: bool = False
+    safety_action: str = ""
+    safety_badge: str = "info"
+    safety_recommendation: str = ""
+    can_delete: bool = False
+    children_count: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class StorageCategoryBreakdown:
+    """Segmentação de uma categoria do Raio-X de armazenamento (Documentos ou Dados do Sistema) - RF-18."""
+    category_id: str
+    title: str
+    os_equivalent: str  # "Documentos (macOS Storage)" ou "Dados do Sistema / System Data"
+    total_bytes: int
+    total_formatted: str
+    description: str
+    why_os_hides_it: str
+    top_items: List[Dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class StorageXRayReport:
+    """Relatório consolidado de Raio-X das categorias opacas do macOS (Documentos e System Data) - RF-18."""
+    documents_total_bytes: int = 0
+    documents_visible_bytes: int = 0
+    documents_hidden_dotfiles_bytes: int = 0
+    documents_rebuildable_artifacts_bytes: int = 0
+    system_data_tracked_bytes: int = 0
+    categories: List[StorageCategoryBreakdown] = field(default_factory=list)
+
+    @property
+    def documents_total_formatted(self) -> str:
+        return format_bytes(self.documents_total_bytes)
+
+    @property
+    def documents_visible_formatted(self) -> str:
+        return format_bytes(self.documents_visible_bytes)
+
+    @property
+    def documents_hidden_dotfiles_formatted(self) -> str:
+        return format_bytes(self.documents_hidden_dotfiles_bytes)
+
+    @property
+    def documents_rebuildable_artifacts_formatted(self) -> str:
+        return format_bytes(self.documents_rebuildable_artifacts_bytes)
+
+    @property
+    def system_data_tracked_formatted(self) -> str:
+        return format_bytes(self.system_data_tracked_bytes)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "documents_total_bytes": self.documents_total_bytes,
+            "documents_total_formatted": self.documents_total_formatted,
+            "documents_visible_bytes": self.documents_visible_bytes,
+            "documents_visible_formatted": self.documents_visible_formatted,
+            "documents_hidden_dotfiles_bytes": self.documents_hidden_dotfiles_bytes,
+            "documents_hidden_dotfiles_formatted": self.documents_hidden_dotfiles_formatted,
+            "documents_rebuildable_artifacts_bytes": self.documents_rebuildable_artifacts_bytes,
+            "documents_rebuildable_artifacts_formatted": self.documents_rebuildable_artifacts_formatted,
+            "system_data_tracked_bytes": self.system_data_tracked_bytes,
+            "system_data_tracked_formatted": self.system_data_tracked_formatted,
+            "categories": [c.to_dict() for c in self.categories],
+        }
+
+
+@dataclass
 class StorageOptimizationResult:
     """Resultado da otimização inteligente de storage (TRIM, APFS ou Defrag condicional)."""
     drive: str
@@ -529,6 +709,7 @@ class SystemExecutionReport:
     execution_logs: List[str] = field(default_factory=list)
     hardware_health: Optional[HardwareHealthInfo] = None
     storage_optimizations: List[StorageOptimizationResult] = field(default_factory=list)
+    storage_xray: Optional[StorageXRayReport] = None
 
     @property
     def total_bytes_freed_formatted(self) -> str:
@@ -581,4 +762,5 @@ class SystemExecutionReport:
             "execution_logs": list(self.execution_logs),
             "hardware_health": self.hardware_health.to_dict() if self.hardware_health else None,
             "storage_optimizations": [o.to_dict() for o in self.storage_optimizations],
+            "storage_xray": self.storage_xray.to_dict() if self.storage_xray else None,
         }

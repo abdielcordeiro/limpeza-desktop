@@ -7,6 +7,37 @@ e este projeto adota o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.3.1] - 2026-11-23
+
+### Corrigido / Adicionado
+- **Reconciliação Exata de Capacidade e Ocupação de Disco no macOS APFS (RF-20 / ADR-012):**
+  - Reconciliação exata de capacidade e ocupação do container APFS no macOS (`_probe_macos_volume_metrics`) combinando `statvfs` (`shutil.disk_usage`), `diskutil info -plist`, `system_profiler SPStorageDataType` e Foundation `NSURLVolumeAvailableCapacityForImportantUsageKey`.
+  - Formatação nativa em **Base-10 SI Decimal ($1000^3\text{ bytes} = 1\text{ GB}$)** para volumes macOS (`245.11 GB` total / `217.10 GB` usado), eliminando a defasagem visual de `7,37%` (~15 GB) causada pela formatação binária (`GiB`, $1024^3$) quando comparada aos Ajustes do Sistema do macOS.
+  - Exibição dual transparente na Janela Inicial (`/`), Aba 1 e Aba 8 do Dashboard HTML: métricas principais no padrão Ajustes do macOS (`SI 1000³`), acompanhadas de `⚡ Alocado Bruto APFS`, `♻️ Espaço Purgável APFS`, `💽 Livre Físico Imediato` e `📐 Equivalente Binário (IEC 1024³ GiB)`.
+  - Sincronização 1:1 entre `MacOSSystemProbeAdapter.get_partitions()` (`PartitionInfo`) e `MacOSHardwareProbeAdapter.get_disks_health()` (`StorageDiskHealth`).
+
+---
+
+## [1.3.0] - 2026-11-23
+
+### Adicionado
+- **Raio-X Real das Categorias Ocultas de Armazenamento (RF-18 / ADR-011):**
+  - Desvendamento completo de **"Documentos"** (revelando o "espaço fantasma" ocultado pelo macOS) e **"Dados do Sistema" (`System Data`)** através de `StorageXRayReport` e `StorageCategoryBreakdown`.
+  - Descoberta dinâmica de 100% das pastas visíveis de projetos (`~/Documents`, `~/IdeaProjects`, `~/Desktop`, `~/Downloads`, etc.) e pastas ocultas na raiz da Home `~` (`~/.gemini`, `~/.cursor`, `~/.vscode`, `~/.gradle`, `~/.npm`, `~/.cargo`, `~/.m2`, `~/.ollama`, `~/.docker`, etc.) no escopo padrão `SMART_FAST`.
+  - Mapeamento e classificação de **Artefatos Reconstruíveis de Projetos** (`node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.next`, `Pods`) com inclusão direta na lista de limpeza assistida.
+- **Explorador Cirúrgico de Diretórios Sob Demanda com Drill-Down Infinito (RF-19 / ADR-011):**
+  - Novo endpoint REST local `POST /api/inspect-directory` em `127.0.0.1` com proteção inviolável contra path traversal (`..`), null bytes e flags.
+  - Painel/modal com navegação recursiva por breadcrumb, ordenação decrescente por tamanho físico real (`st_blocks * 512`), classificação de segurança e ações diretas (`📂 Abrir`, `🗑️ Lixeira`, `🔥 Excluir`).
+  - Botão `🔍 Explorar` integrado aos cards do Raio-X e à tabela de Top Maiores Ocupantes.
+- **Efetividade Máxima na Limpeza Autônoma:**
+  - Ativação por padrão (`default_enabled: true`) das regras de desenvolvimento (`mac_jetbrains_caches`, `mac_node_js_caches`, `mac_python_dev_caches`, `mac_jvm_native_mobile_caches`, `win_dev_caches`).
+  - Limpeza profunda de `@DARWIN_USER_CACHE_DIR@/*` e remoção completa de subpastas expandidas por wildcard (`remove_root=True`).
+  - Suporte multi-perfil Chromium (`/*/Cache`, `/*/Code Cache`) e IDEs modernas (Windsurf, Antigravity, Postman).
+- **Suíte de Testes Automatizados:**
+  - Criação de `tests/test_storage_xray_and_inspector.py` elevando a suíte para **77 testes automatizados** passando 100% verdes com verificação estrita Zero-Network.
+
+---
+
 ## [1.2.0] - 2026-11-20
 
 ### Adicionado

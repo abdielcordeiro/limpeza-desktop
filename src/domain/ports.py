@@ -24,6 +24,9 @@ from .entities import (
     LongevityScoreReport,
     HardwareHealthInfo,
     StorageOptimizationResult,
+    DirectoryInspectionNode,
+    StorageCategoryBreakdown,
+    StorageXRayReport,
 )
 from .value_objects import ExecutionMode, OSPlatform
 
@@ -109,6 +112,26 @@ class IDiskScannerPort(ABC):
         os_platform: OSPlatform,
         top_n: int = 100,
     ) -> Tuple[List[OccupantItem], List[CleanableItem], List[InstalledAppInfo]]:
+        pass
+
+    @abstractmethod
+    def build_storage_xray(
+        self,
+        os_platform: OSPlatform,
+        partitions: List[PartitionInfo],
+        hardware_health: Optional[HardwareHealthInfo] = None,
+    ) -> StorageXRayReport:
+        """Constrói o relatório Raio-X decompondo Documentos e Dados do Sistema (RF-18 / ADR-011)."""
+        pass
+
+    @abstractmethod
+    def inspect_directory(
+        self,
+        dir_path: str,
+        os_platform: OSPlatform,
+        max_items: int = 30,
+    ) -> Dict[str, Any]:
+        """Inspeciona subdiretórios e arquivos sob demanda ordenados por tamanho físico (RF-19 / ADR-011)."""
         pass
 
 

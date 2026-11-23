@@ -297,6 +297,61 @@ Este documento define o escopo funcional, critérios de aceite e restrições n�
 
 ---
 
+### RF-18: Raio-X Real das Categorias Ocultas de Armazenamento (Desvendando "Documentos" e "Dados do Sistema") & Artefatos Reconstruíveis de Projetos
+- **Descrição:** Revelar com precisão cirúrgica o que está consumindo espaço dentro das categorias opacas do sistema operacional — especificamente **"Documentos"** (onde o navegador nativo do macOS esconde diretórios iniciados com ponto `~/.*` e árvores de projetos de código) e **"Dados do Sistema / System Data"** (onde o macOS acumula mais de 100 GB sem oferecer botão de inspeção) — além de detectar artefatos pesados reconstruíveis de desenvolvimento (`node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.next`, `Pods`).
+- **Critérios de Aceite:**
+  1. **Cobertura Completa da Pasta Pessoal (`~`) no Escopo `SMART_FAST`:**
+     - Descobrir dinamicamente via `os.scandir(os.path.expanduser("~"))` **todas as pastas visíveis do usuário** (`~/Documents`, `~/Desktop`, `~/Downloads`, `~/IdeaProjects`, `~/Projects`, `~/Developer`, `~/Workspace`, `~/Movies`, `~/Music`, `~/Pictures`, `~/Public`, etc.) e **todas as pastas ocultas na raiz do usuário (`~/.*`)** (`~/.gemini`, `~/.cursor`, `~/.vscode`, `~/.ollama`, `~/.lmstudio`, `~/.docker`, `~/.orbstack`, `~/.colima`, `~/.nvm`, `~/.pyenv`, `~/.sdkman`, `~/.rustup`, `~/.cargo`, `~/.m2`, `~/.gradle`, `~/.npm`, `~/.bun`, `~/.pub-cache`, `~/.cocoapods`, `~/.android`, `~/.local`, `~/.config`, `~/.virtualenvs`, `~/.cache`, etc.).
+  2. **Painel "Raio-X de Armazenamento (`StorageXRayReport`)" na Aba 1:**
+     - **Decomposição de "Documentos & Pasta Pessoal (`~` fora de `~/Library`)":**
+       - Separar e somar:
+         - **(A) Pastas Visíveis & Projetos do Usuário** (`~/Documents`, `~/IdeaProjects`, `~/Desktop`, `~/Downloads`, etc.).
+         - **(B) Pastas Ocultas na Raiz do Usuário (`~/.*` — "Espaço Fantasma de Documentos")** que o Ajustes do Sistema do macOS contabiliza em "Documentos", mas esconde da listagem nativa.
+         - **(C) Artefatos de Build & Dependências Reconstruíveis em Projetos** (`node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.gradle`, `.next`, `dist`, `Pods`).
+     - **Decomposição de "Dados do Sistema (`System Data` — `~/Library`, `/Library`, `/private/var`, `/opt/homebrew`)":**
+       - Destrinchar o consumo em 8 subcategorias auditáveis com os maiores diretórios culpados em cada uma:
+         1. *Containers, VMs & Imagens de Disco* (`~/Library/Containers`, `~/Library/Group Containers`, `Docker.raw`, `OrbStack`, `Colima`, `UTM`).
+         2. *Application Support & Bancos de Estado* (`~/Library/Application Support/*`, `Code/User/workspaceStorage`, `Cursor`, `JetBrains`, `MobileSync/Backup`).
+         3. *Caches de Usuário & Subsistema Darwin* (`~/Library/Caches/*`, `@DARWIN_USER_CACHE_DIR@`, `@DARWIN_USER_TEMP_DIR@`).
+         4. *Toolchains, SDKs & Simuladores* (`~/Library/Developer`, `/Library/Developer/CoreSimulator`, `~/Library/Android/sdk`, `~/.android/avd`).
+         5. *Gerenciadores de Pacotes & Stores Globais* (`/opt/homebrew`, `/usr/local`, `~/Library/pnpm`, `~/.m2`, `~/.gradle`, `~/.cargo`, `~/.rustup`, `~/.nvm`, `~/.pyenv`).
+         6. *Modelos Locais de IA & Agentes* (`~/.ollama`, `~/.lmstudio`, `~/.cache/huggingface`, `~/.gemini`, `~/.cursor`).
+         7. *Memória Virtual, Swap, Logs & Diagnósticos* (`/private/var/vm`, `~/Library/Logs`, `/private/var/db/diagnostics`).
+         8. *Snapshots APFS Locais & Espaço Purgável* (`PurgeableSpace`, `com.apple.TimeMachine.*`).
+  3. **Detecção e Limpeza Assistida de Artefatos Reconstruíveis de Projetos:**
+     - Quando o scanner encontrar diretórios `node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.next`, `dist`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache` ou `Pods` com mais de `10 MB` dentro de pastas de projetos (`~/IdeaProjects`, `~/Documents`, `~/Projects`, `~/Developer`, etc.), classificá-los como **`Artefato Reconstruível de Projeto (Dev Build / Dependencies)`** e incluí-los na Aba 4 e no Raio-X com botão para mover para a Lixeira ou excluir.
+  4. **Ativação Padrão (`default_enabled: true`) e Efetividade Máxima das Regras de Limpeza Autônoma:**
+     - Habilitar por padrão (`default_enabled: true`) as regras de limpeza 100% seguras de caches de desenvolvimento (`mac_jetbrains_caches`, `mac_node_js_caches`, `mac_python_dev_caches`, `mac_jvm_native_mobile_caches`, `win_dev_caches`), caches multi-perfil de navegadores (`Profile *`, `Service Worker/CacheStorage`), `@DARWIN_USER_CACHE_DIR@/*` (protegido por whitelist) e remover diretórios de cache filhos quando expandidos via wildcard (`remove_root=True` em filhos de wildcard).
+
+---
+
+### RF-19: Explorador Interativo de Árvore de Diretórios Sob Demanda (`POST /api/inspect-directory`) com Drill-Down Infinito
+- **Descrição:** Permitir ao usuário clicar em **qualquer pasta** do Raio-X de Armazenamento, da Aba 1, da Aba 4 ou da Aba 5 para inspecionar e navegar recursivamente (nível por nível, sem limite de profundidade) por todas as suas subpastas e arquivos, identificando exatamente onde estão os gigabytes ocultos e executando ações imediatas (`📂 Abrir no Finder/Explorer`, `🗑️ Mover p/ Lixeira` ou `🔥 Excluir`).
+- **Critérios de Aceite:**
+  1. **Endpoint Local `POST /api/inspect-directory`:**
+     - Receber `{"path": "<caminho_absoluto>", "max_items": 30}` no servidor local `127.0.0.1`.
+     - Validar que o caminho existe, é um diretório e não contém path traversal (`..`) ou null bytes.
+     - Listar e medir (usando tamanho físico real `st_blocks * 512` no macOS) as subpastas e arquivos filhos imediatos daquele diretório, ordenados do maior para o menor tamanho, retornando nome, caminho, tamanho em bytes, tamanho formatado, percentual em relação à pasta pai, tipo (`Pasta` ou `Arquivo`), classificação de segurança (`classify_item_safety`) e flag `can_delete`.
+  2. **Drill-Down Expandido no Relatório Offline e Infinito no Servidor Local:**
+     - Aumentar o `sub_occupants` pré-calculado no relatório estático de `5` para `12` subpastas por item.
+     - No Dashboard Web (`127.0.0.1`), exibir botão `"🔍 Explorar Dentro desta Pasta"` em cada diretório do Raio-X e do Top 100, abrindo a árvore aninhada com breadcrumb clicável para navegar até a subpasta/arquivo exato que consome os gigabytes.
+
+---
+
+### RF-20: Reconciliação Exata de Capacidade e Ocupação de Disco no macOS APFS (Padrão SI Decimal $1000^3$ vs Binário IEC $1024^3$ & Espaço Purgável)
+- **Descrição:** Eliminar a discrepância de medição de armazenamento entre o painel da aplicação e os **Ajustes do Sistema > Geral > Armazenamento** do macOS (ex: quando o macOS exibe `217,1 GB de 245,11 GB usados` e chamadas POSIX `statvfs` formatação binária exibiam `202.65 GB / 228.27 GB`), garantindo precisão matemática e consistência em todos os módulos dependentes (`PartitionInfo`, `StorageDiskHealth`, `LongevityScoreReport`, Janela Inicial `/` e Dashboard HTML).
+- **Critérios de Aceite:**
+  1. **Formatação Nativa SI Decimal ($1000^3\text{ bytes} = 1\text{ GB}$) com Transparência Dual Binária ($1024^3\text{ bytes} = 1\text{ GiB}$):**
+     - No macOS (onde o Finder, Utilitário de Disco e Ajustes do Sistema operam em Base-10 desde o Mac OS X 10.6), `PartitionInfo` e `StorageDiskHealth` devem formatar as métricas principais de disco (`total_formatted`, `used_formatted`, `free_formatted`, `purgeable_formatted`) em **Base-10 SI (`1000^3`)** (ex: `245.11 GB` total e `217.10 GB` usado), expondo simultaneamente os equivalentes binários (`total_binary_formatted: "228.27 GiB"`, `used_binary_formatted: "202.19 GiB"`, `raw_used_binary_formatted: "202.65 GiB"`) no dicionário serializado e nos cartões da interface.
+  2. **Reconciliação do Container APFS e `PurgeableSpace` (`Espaço Purgável`):**
+     - Em `MacOSSystemProbeAdapter.get_partitions()` e `MacOSHardwareProbeAdapter.get_disks_health()`, consolidar a leitura do container APFS consultando `statvfs` (`/System/Volumes/Data` e `/`), `diskutil info -plist /System/Volumes/Data` (e `/`) e `system_profiler -json SPStorageDataType`:
+       - Extrair `total_bytes` (capacidade real do container APFS), `raw_free_bytes` (blocos físicos não alocados imediatos), `raw_used_bytes = total_bytes - raw_free_bytes` (blocos físicos brutos alocados no container) e `purgeable_bytes` (`PurgeableSpace` retido pelo APFS ou delta entre espaço disponível do `StorageKit`/`SPStorageDataType` e `raw_free_bytes`).
+       - Calcular `free_bytes` (espaço disponível efetivo no padrão Ajustes do macOS = `raw_free_bytes + purgeable_bytes` limitado a `total_bytes`) e `used_bytes = total_bytes - free_bytes` (espaço usado efetivo no padrão Ajustes do macOS).
+  3. **Consistência Transversal nos Módulos e Interface (Aba 1, Aba 8, Launcher e Longevity Score):**
+     - Exibir nos cards de partição da Aba 1 (`html_reporter.py`), da Aba 8 e da Janela Inicial (`local_server.py`) tanto os números exatos do padrão macOS (`Usado: 217.10 GB / 245.11 GB`) quanto o detalhamento técnico de engenharia (`Alocado Bruto APFS`, `Espaço Purgável APFS`, `Livre Físico Imediato` e `Equivalente Binário IEC GiB`).
+
+---
+
 ## 2. Requisitos Não-Funcionais (RNF)
 
 ### RNF-01: Política Estrita Zero-Network & Zero-Telemetry (Privacidade Absoluta)

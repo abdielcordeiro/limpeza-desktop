@@ -544,6 +544,59 @@ def generate_html_report(
             background: rgba(168, 85, 247, 0.25);
             border-color: var(--purple-color);
         }}
+
+        /* Raio-X de Armazenamento & Explorador Cirúrgico (RF-18 & RF-19) */
+        .xray-category-card {{
+            background: rgba(15, 23, 42, 0.75);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.15rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-width: 0;
+            box-sizing: border-box;
+            transition: border-color 0.15s ease;
+        }}
+
+        .xray-category-card:hover {{
+            border-color: rgba(56, 189, 248, 0.4);
+        }}
+
+        .xray-item-row {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0;
+            border-bottom: 1px dashed rgba(51, 65, 85, 0.45);
+            font-size: 0.82rem;
+            gap: 0.5rem;
+            min-width: 0;
+        }}
+
+        .xray-item-row:last-child {{
+            border-bottom: none;
+        }}
+
+        .xray-item-name {{
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.78rem;
+        }}
+
+        .breadcrumb-segment {{
+            cursor: pointer;
+            color: var(--accent-primary);
+            text-decoration: underline;
+            white-space: nowrap;
+        }}
+
+        .breadcrumb-segment:hover {{
+            color: var(--accent-hover);
+        }}
     </style>
 </head>
 <body>
@@ -601,6 +654,103 @@ def generate_html_report(
         <!-- ABA 1: RESUMO & SAÚDE DOS DISCOS -->
         <section id="tab-overview" class="tab-content active">
             <div class="grid-cards" id="partitions-grid"></div>
+
+            <!-- RAIO-X REAL DO ARMAZENAMENTO (RF-18 / ADR-011) -->
+            <div id="storage-xray-section" style="margin-top:1.5rem;margin-bottom:1.5rem;">
+                <div class="card" style="border: 1px solid rgba(56, 189, 248, 0.4); background: linear-gradient(145deg, #111827 0%, #1E293B 100%);">
+                    <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
+                        <div class="card-title" style="font-size:1.15rem;display:flex;align-items:center;gap:8px;">
+                            <span>🔍 Raio-X Real do Armazenamento: Desvendando "Documentos" e "Dados do Sistema"</span>
+                        </div>
+                        <span class="badge info">ADR-011 • Visibilidade Completa da Home (~)</span>
+                    </div>
+                    <p style="color:var(--text-muted);font-size:0.86rem;margin-bottom:1.25rem;">
+                        O macOS agrupa gigabytes nas categorias opacas <strong>"Documentos"</strong> (escondendo dotfiles <code>~/.*</code> e dependências <code>node_modules</code>) e <strong>"Dados do Sistema"</strong> (sem botão nativo de inspeção). Este painel destrincha cirurgicamente o peso real de cada árvore.
+                    </p>
+
+                    <!-- 3 KPIs de Destaque no Topo -->
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:1rem;margin-bottom:1.5rem;">
+                        <div style="background:rgba(15, 23, 42, 0.7);padding:1rem 1.25rem;border-radius:10px;border:1px solid var(--border-color);min-width:0;box-sizing:border-box;">
+                            <div style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;white-space:nowrap;">📄 Pasta Pessoal (~ / "Documentos" do macOS)</div>
+                            <div style="font-size:1.6rem;font-weight:700;color:var(--accent-primary);margin:0.25rem 0;white-space:nowrap;" id="xray-doc-total">0.00 B</div>
+                            <div style="display:flex;flex-direction:column;gap:4px;font-size:0.76rem;margin-top:0.4rem;">
+                                <div style="display:flex;justify-content:space-between;white-space:nowrap;"><span style="color:var(--text-muted);">Projetos & Pastas Visíveis:</span> <strong id="xray-doc-visible">0.00 B</strong></div>
+                                <div style="display:flex;justify-content:space-between;white-space:nowrap;"><span style="color:var(--warning-color);">👻 Pastas Ocultas (~/.*):</span> <strong id="xray-doc-hidden" style="color:var(--warning-color);">0.00 B</strong></div>
+                                <div style="display:flex;justify-content:space-between;white-space:nowrap;"><span style="color:var(--purple-color);">🧱 Builds Reconstruíveis:</span> <strong id="xray-doc-rebuildable" style="color:var(--purple-color);">0.00 B</strong></div>
+                            </div>
+                        </div>
+                        <div style="background:rgba(15, 23, 42, 0.7);padding:1rem 1.25rem;border-radius:10px;border:1px solid var(--border-color);min-width:0;box-sizing:border-box;">
+                            <div style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;white-space:nowrap;">⚙️ Dados do Sistema Mapeados (System Data)</div>
+                            <div style="font-size:1.6rem;font-weight:700;color:var(--text-main);margin:0.25rem 0;white-space:nowrap;" id="xray-sys-total">0.00 B</div>
+                            <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem;">
+                                Containers sandboxed, caches Darwin, SDKs Xcode, Homebrew, Swap/VM e Snapshots locais.
+                            </p>
+                        </div>
+                        <div style="background:rgba(15, 23, 42, 0.7);padding:1rem 1.25rem;border-radius:10px;border:1px solid var(--border-color);min-width:0;box-sizing:border-box;">
+                            <div style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;white-space:nowrap;">🧹 Potencial Recuperável Mapeado</div>
+                            <div style="font-size:1.6rem;font-weight:700;color:var(--success-color);margin:0.25rem 0;white-space:nowrap;" id="xray-recoverable-total">0.00 B</div>
+                            <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem;">
+                                Caches, pastas órfãs e artefatos de build elegíveis para remoção ou quarentena segura.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Grid dos 8 Cards de Categorias -->
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:1rem;" id="xray-categories-grid">
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL / PAINEL DO EXPLORADOR CIRÚRGICO DE DIRETÓRIOS (RF-19) -->
+            <div id="inspector-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:9999;backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:1.5rem;">
+                <div style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:14px;width:100%;max-width:1100px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 40px rgba(0,0,0,0.6);overflow:hidden;">
+                    <!-- Header do Modal -->
+                    <div style="padding:1.1rem 1.5rem;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;background:var(--bg-card);">
+                        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                            <span style="font-size:1.25rem;">📂</span>
+                            <div style="min-width:0;">
+                                <div style="font-weight:700;font-size:1.05rem;white-space:nowrap;">Explorador Cirúrgico de Diretórios (Drill-Down Nível a Nível)</div>
+                                <div style="font-size:0.76rem;color:var(--text-muted);">Navegação recursiva infinita • Tamanho físico real no disco</div>
+                            </div>
+                        </div>
+                        <button class="btn secondary" onclick="closeDirectoryInspector()" style="padding:0.35rem 0.75rem;font-size:0.85rem;">✖ Fechar</button>
+                    </div>
+
+                    <!-- Breadcrumbs & Navegação Superior -->
+                    <div style="padding:0.75rem 1.5rem;background:rgba(15, 23, 42, 0.6);border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                        <div id="inspector-breadcrumbs" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.82rem;min-width:0;">
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <button class="btn secondary" id="btn-inspector-up" onclick="inspectorGoUp()" style="font-size:0.78rem;padding:0.3rem 0.65rem;" title="Subir um nível de diretório">⬆️ Subir Nível</button>
+                            <span class="badge info" id="inspector-summary-badge" style="white-space:nowrap;">0 itens</span>
+                        </div>
+                    </div>
+
+                    <!-- Tabela de Itens do Diretório Atual -->
+                    <div style="flex:1;overflow-y:auto;padding:1rem 1.5rem;">
+                        <div id="inspector-loading" style="display:none;text-align:center;padding:2rem;color:var(--accent-primary);">
+                            ⏳ Carregando subpastas e calculando tamanho físico...
+                        </div>
+                        <div class="table-wrapper" id="inspector-table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Tipo</th>
+                                        <th>Tamanho</th>
+                                        <th>Impacto na Pasta</th>
+                                        <th>Segurança</th>
+                                        <th style="text-align:right;">Ações Diretas</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inspector-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">📋 Log de Auditoria da Sessão Local</div>
@@ -1052,6 +1202,18 @@ def generate_html_report(
                         <div class="progress-bar-bg">
                             <div class="progress-bar-fill" style="width:${{Math.min(p.percent_used, 100)}}%;background:${{barColor}}"></div>
                         </div>
+                        ${{(p.purgeable_bytes > 0 || p.total_binary_formatted) ? `
+                            <div style="display:flex;flex-wrap:wrap;gap:0.5rem 1rem;font-size:0.76rem;color:var(--text-muted);margin:0.45rem 0;padding:0.45rem 0.65rem;background:rgba(11,15,25,0.55);border-radius:8px;border:1px solid rgba(51,65,85,0.45);">
+                                ${{p.purgeable_bytes > 0 ? `
+                                    <span style="white-space:nowrap;">⚡ <strong>Alocado Bruto APFS:</strong> ${{escapeHtml(p.raw_used_formatted)}}</span>
+                                    <span style="white-space:nowrap;">♻️ <strong>Espaço Purgável:</strong> <strong style="color:var(--accent-primary)">${{escapeHtml(p.purgeable_formatted)}}</strong></span>
+                                    <span style="white-space:nowrap;">💽 <strong>Livre Físico Imediato:</strong> ${{escapeHtml(p.raw_free_formatted)}}</span>
+                                ` : ''}}
+                                ${{p.total_binary_formatted ? `
+                                    <span style="white-space:nowrap;">📐 <strong>Binário (IEC 1024³):</strong> ${{escapeHtml(p.used_binary_formatted)}} / ${{escapeHtml(p.total_binary_formatted)}}${{p.purgeable_bytes > 0 && p.raw_used_binary_formatted ? ' (Bruto: ' + escapeHtml(p.raw_used_binary_formatted) + ')' : ''}}</span>
+                                ` : ''}}
+                            </div>
+                        ` : ''}}
                         <p style="font-size:0.8rem;color:var(--text-muted)">${{escapeHtml(p.health_desc)}}</p>
                     </div>`;
                 }}).join('');
@@ -1076,6 +1238,7 @@ def generate_html_report(
             try {{ renderInstalledApps(); }} catch(e) {{ console.error('Erro renderInstalledApps:', e); }}
             try {{ renderOrphans(); }} catch(e) {{ console.error('Erro renderOrphans:', e); }}
             try {{ renderTopOccupants(); }} catch(e) {{ console.error('Erro renderTopOccupants:', e); }}
+            try {{ renderStorageXRay(); }} catch(e) {{ console.error('Erro renderStorageXRay:', e); }}
             try {{ renderTweaks(); }} catch(e) {{ console.error('Erro renderTweaks:', e); }}
             try {{ renderCloudAndUpdates(); }} catch(e) {{ console.error('Erro renderCloudAndUpdates:', e); }}
             try {{ renderHardwareAndStorage(); }} catch(e) {{ console.error('Erro renderHardwareAndStorage:', e); }}
@@ -1211,6 +1374,7 @@ def generate_html_report(
                                     <span class="subfolder-size" style="white-space:nowrap;">${{sub.size_formatted}}</span>
                                     <div class="subfolder-bar"><div class="subfolder-fill" style="width:${{pct}}%"></div></div>
                                     <div style="display:inline-flex;gap:4px;margin-left:6px;">
+                                        <button class="btn-act" style="padding:0.15rem 0.4rem;font-size:0.7rem;" onclick="openDirectoryInspector('${{escapeAttr(sub.path)}}')" title="Explorar cirurgicamente">🔍</button>
                                         <button class="btn-act" style="padding:0.15rem 0.4rem;font-size:0.7rem;" onclick="revealPath('${{escapeAttr(sub.path)}}')">📂</button>
                                         <button class="btn-act danger" style="padding:0.15rem 0.4rem;font-size:0.7rem;" onclick="fileAction('${{escapeAttr(sub.path)}}', 'trash')">🗑️</button>
                                     </div>
@@ -1231,6 +1395,7 @@ def generate_html_report(
                         ${{subsHtml}}
                     </td>
                     <td class="nowrap">
+                        ${{(o.item_type || o.type) === 'Pasta' ? `<button class="btn-act" onclick="openDirectoryInspector('${{escapeAttr(o.path)}}')">🔍 Explorar</button>` : ''}}
                         <button class="btn-act" onclick="revealPath('${{escapeAttr(o.path)}}')">📂 Abrir</button>
                         ${{canDel ? `
                             <button class="btn-act danger" onclick="fileAction('${{escapeAttr(o.path)}}', 'trash')">🗑️ Lixeira</button>
@@ -1531,6 +1696,192 @@ def generate_html_report(
             }}
         }}
 
+        let currentInspectorPath = null;
+        let parentInspectorPath = null;
+
+        function renderStorageXRay() {{
+            const xray = REPORT_DATA.storage_xray;
+            if (!xray) return;
+
+            setText('xray-doc-total', xray.documents_total_formatted || '0.00 B');
+            setText('xray-doc-visible', xray.documents_visible_formatted || '0.00 B');
+            setText('xray-doc-hidden', xray.documents_hidden_dotfiles_formatted || '0.00 B');
+            setText('xray-doc-rebuildable', xray.documents_rebuildable_artifacts_formatted || '0.00 B');
+            setText('xray-sys-total', xray.system_data_tracked_formatted || '0.00 B');
+            setText('xray-recoverable-total', REPORT_DATA.potential_extra_bytes_formatted || '0.00 B');
+
+            const grid = document.getElementById('xray-categories-grid');
+            if (!grid) return;
+
+            const cats = xray.categories || [];
+            grid.innerHTML = cats.map(cat => {{
+                const isDoc = cat.os_equivalent && cat.os_equivalent.includes('Documentos');
+                const badgeClass = isDoc ? 'purple' : 'info';
+                const items = cat.top_items || [];
+
+                const itemsHtml = items.length ? items.map(it => `
+                    <div class="xray-item-row">
+                        <span class="xray-item-name" title="${{escapeHtml(it.path)}}">
+                            ${{it.name.startsWith('.') ? '👻 ' : '📁 '}}<strong>${{escapeHtml(it.name)}}</strong>
+                        </span>
+                        <div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">
+                            <strong style="font-size:0.8rem;white-space:nowrap;">${{escapeHtml(it.size_formatted)}}</strong>
+                            <button class="btn-act" onclick="openDirectoryInspector('${{escapeAttr(it.path)}}')">🔍 Explorar</button>
+                            <button class="btn-act" onclick="revealPath('${{escapeAttr(it.path)}}')">📂 Abrir</button>
+                            ${{it.can_delete ? `<button class="btn-act danger" onclick="fileAction('${{escapeAttr(it.path)}}', 'trash')">🗑️</button>` : ''}}
+                        </div>
+                    </div>
+                `).join('') : '<div style="font-size:0.8rem;color:var(--text-muted);padding:0.4rem 0;">Nenhum diretório significativo encontrado nesta categoria.</div>';
+
+                return `
+                    <div class="xray-category-card">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">
+                            <div style="min-width:0;">
+                                <div style="font-weight:700;font-size:0.95rem;color:var(--text-main);">${{escapeHtml(cat.title)}}</div>
+                                <span class="badge ${{badgeClass}}" style="margin-top:0.25rem;">${{escapeHtml(cat.os_equivalent)}}</span>
+                            </div>
+                            <div style="font-size:1.2rem;font-weight:700;color:var(--accent-primary);white-space:nowrap;">
+                                ${{escapeHtml(cat.total_formatted)}}
+                            </div>
+                        </div>
+                        <p style="font-size:0.78rem;color:var(--text-muted);margin:0;">${{escapeHtml(cat.description)}}</p>
+                        <div style="font-size:0.75rem;color:var(--warning-color);background:rgba(245,158,11,0.08);padding:0.4rem 0.6rem;border-radius:6px;border-left:2px solid var(--warning-color);">
+                            💡 <strong>Por que o macOS oculta/acumula:</strong> ${{escapeHtml(cat.why_os_hides_it)}}
+                        </div>
+                        <div style="border-top:1px solid rgba(51,65,85,0.4);margin-top:0.35rem;padding-top:0.35rem;">
+                            <div style="font-size:0.74rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;margin-bottom:0.25rem;">Maiores Diretórios:</div>
+                            ${{itemsHtml}}
+                        </div>
+                    </div>
+                `;
+            }}).join('');
+        }}
+
+        function openDirectoryInspector(dirPath) {{
+            const modal = document.getElementById('inspector-modal');
+            if (modal) {{
+                modal.style.display = 'flex';
+                inspectDirectory(dirPath);
+            }}
+        }}
+
+        function closeDirectoryInspector() {{
+            const modal = document.getElementById('inspector-modal');
+            if (modal) modal.style.display = 'none';
+        }}
+
+        function inspectorGoUp() {{
+            if (parentInspectorPath) {{
+                inspectDirectory(parentInspectorPath);
+            }}
+        }}
+
+        async function inspectDirectory(dirPath) {{
+            currentInspectorPath = dirPath;
+            const loading = document.getElementById('inspector-loading');
+            const tbody = document.getElementById('inspector-tbody');
+            const breadcrumbs = document.getElementById('inspector-breadcrumbs');
+            const badge = document.getElementById('inspector-summary-badge');
+            const btnUp = document.getElementById('btn-inspector-up');
+
+            if (loading) loading.style.display = 'block';
+            if (tbody) tbody.innerHTML = '';
+
+            const normalizedPath = dirPath.split('\\\\').join('/');
+            const segments = normalizedPath.split('/').filter(Boolean);
+            let accum = dirPath.startsWith('/') ? '/' : '';
+            const breadcrumbLinks = [];
+            if (dirPath.startsWith('/')) {{
+                breadcrumbLinks.push(`<span class="breadcrumb-segment" onclick="inspectDirectory('/')">/</span>`);
+            }}
+            segments.forEach((seg, sIdx) => {{
+                accum = accum.endsWith('/') ? accum + seg : accum + '/' + seg;
+                const pathForSeg = accum;
+                if (sIdx === segments.length - 1) {{
+                    breadcrumbLinks.push(`<strong>${{escapeHtml(seg)}}</strong>`);
+                }} else {{
+                    breadcrumbLinks.push(`<span class="breadcrumb-segment" onclick="inspectDirectory('${{escapeAttr(pathForSeg)}}')">${{escapeHtml(seg)}}</span>`);
+                }}
+            }});
+            if (breadcrumbs) breadcrumbs.innerHTML = breadcrumbLinks.join(' / ');
+
+            if (!window.location.protocol.startsWith('http')) {{
+                if (loading) loading.style.display = 'none';
+                if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">A inspeção interativa nível a nível está disponível rodando via servidor local (127.0.0.1). Diretório selecionado: <code>${{escapeHtml(dirPath)}}</code></td></tr>`;
+                return;
+            }}
+
+            try {{
+                const res = await fetch('/api/inspect-directory', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{path: dirPath, max_items: 30}})
+                }});
+                const data = await res.json();
+                if (loading) loading.style.display = 'none';
+
+                if (data.status === 'ok') {{
+                    parentInspectorPath = data.parent_path || null;
+                    if (btnUp) btnUp.disabled = !parentInspectorPath;
+                    if (badge) badge.textContent = `${{data.items_count}} itens (${{data.total_formatted}})`;
+
+                    const items = data.items || [];
+                    if (!items.length) {{
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Diretório vazio.</td></tr>';
+                        return;
+                    }}
+
+                    tbody.innerHTML = items.map(item => {{
+                        const isDir = item.item_type === 'Pasta';
+                        const icon = isDir ? '📁' : '📄';
+                        const pct = Math.min(100, Math.max(3, Math.round(item.percent_of_parent || 0)));
+                        const barColor = item.safety_badge === 'danger' ? 'var(--danger-color)' : (item.safety_badge === 'warning' ? 'var(--warning-color)' : 'var(--accent-primary)');
+
+                        return `
+                            <tr>
+                                <td>
+                                    <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                                        <span>${{icon}}</span>
+                                        <div style="min-width:0;">
+                                            <div style="font-weight:600;font-size:0.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${{escapeHtml(item.name)}}">${{escapeHtml(item.name)}}</div>
+                                            <div class="path-cell" style="font-size:0.72rem;">${{escapeHtml(item.path)}}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="nowrap">${{escapeHtml(item.item_type)}}</td>
+                                <td class="nowrap"><strong>${{escapeHtml(item.size_formatted)}}</strong></td>
+                                <td class="nowrap" style="min-width:110px;">
+                                    <div style="font-size:0.76rem;margin-bottom:2px;">${{item.percent_of_parent}}%</div>
+                                    <div class="progress-bar-bg" style="height:5px;width:90px;"><div class="progress-bar-fill" style="width:${{pct}}%;background:${{barColor}}"></div></div>
+                                </td>
+                                <td class="nowrap"><span class="badge ${{item.safety_badge}}">${{escapeHtml(item.safety_action)}}</span></td>
+                                <td class="nowrap" style="text-align:right;">
+                                    ${{isDir ? `<button class="btn-act" onclick="inspectDirectory('${{escapeAttr(item.path)}}')">🔍 Entrar</button>` : ''}}
+                                    <button class="btn-act" onclick="revealPath('${{escapeAttr(item.path)}}')">📂 Abrir</button>
+                                    ${{item.can_delete ? `
+                                        <button class="btn-act danger" onclick="inspectorFileAction('${{escapeAttr(item.path)}}', 'trash')">🗑️</button>
+                                        <button class="btn-act danger" onclick="inspectorFileAction('${{escapeAttr(item.path)}}', 'delete')">🔥</button>
+                                    ` : ''}}
+                                </td>
+                            </tr>
+                        `;
+                    }}).join('');
+                }} else {{
+                    if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger-color);text-align:center;">Erro: ${{escapeHtml(data.message || 'Falha ao inspecionar diretório.')}}</td></tr>`;
+                }}
+            }} catch (e) {{
+                if (loading) loading.style.display = 'none';
+                if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger-color);text-align:center;">Erro de comunicação: ${{escapeHtml(e.message)}}</td></tr>`;
+            }}
+        }}
+
+        async function inspectorFileAction(path, action) {{
+            await fileAction(path, action);
+            if (currentInspectorPath) {{
+                inspectDirectory(currentInspectorPath);
+            }}
+        }}
+
         function renderHardwareAndStorage() {{
             const hw = REPORT_DATA.hardware_health || {{}};
             const alerts = hw.critical_alerts || [];
@@ -1670,6 +2021,16 @@ def generate_html_report(
                                     <span style="color:var(--text-muted)">Capacidade Total:</span>
                                     <span class="hw-metric-val">${{escapeHtml(d.total_formatted || '')}}</span>
                                 </div>
+                                <div class="hw-metric-row">
+                                    <span style="color:var(--text-muted)">Ocupação Efetiva (Padrão SO):</span>
+                                    <span class="hw-metric-val">${{escapeHtml(d.used_formatted || '')}} / ${{escapeHtml(d.total_formatted || '')}} (Livre: ${{escapeHtml(d.free_formatted || '')}})</span>
+                                </div>
+                                ${{d.total_binary_formatted ? `
+                                    <div class="hw-metric-row">
+                                        <span style="color:var(--text-muted)">Equivalente Binário (IEC 1024³):</span>
+                                        <span class="hw-metric-val">${{escapeHtml(d.used_binary_formatted || '')}} / ${{escapeHtml(d.total_binary_formatted || '')}}</span>
+                                    </div>
+                                ` : ''}}
                             ` : ''}}
                         </div>
                     `;

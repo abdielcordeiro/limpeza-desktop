@@ -90,7 +90,7 @@
         "%USERPROFILE%\\.gradle\\caches",
         "%USERPROFILE%\\.nuget\\packages"
       ],
-      "default_enabled": false,
+      "default_enabled": true,
       "risk_level": "safe"
     },
     {
@@ -151,6 +151,7 @@
       "os_platform": "macos",
       "description": "Limpa caches reconstruíveis em /private/var/folders/.../C (@DARWIN_USER_CACHE_DIR@: Metal Shaders, QuickLook Thumbnails, LLVM Clang).",
       "target_paths": [
+        "@DARWIN_USER_CACHE_DIR@/*",
         "@DARWIN_USER_CACHE_DIR@/com.apple.metal",
         "@DARWIN_USER_CACHE_DIR@/com.apple.QuickLook.thumbnailcache",
         "@DARWIN_USER_CACHE_DIR@/org.llvm.clang",
@@ -201,7 +202,17 @@
         "~/Library/Application Support/Arc/User Data/Default/GPUCache",
         "~/Library/Caches/Google/Chrome/Default/Cache",
         "~/Library/Caches/Google/Chrome/Default/Code Cache",
+        "~/Library/Caches/Google/Chrome/*/Cache",
+        "~/Library/Caches/Google/Chrome/*/Code Cache",
+        "~/Library/Application Support/Google/Chrome/*/Service Worker/CacheStorage",
+        "~/Library/Application Support/Google/Chrome/*/GPUCache",
         "~/Library/Caches/BraveSoftware/Brave-Browser/Default/Cache",
+        "~/Library/Caches/BraveSoftware/Brave-Browser/*/Cache",
+        "~/Library/Application Support/Windsurf/Cache/Cache_Data",
+        "~/Library/Application Support/Windsurf/CachedData",
+        "~/Library/Application Support/Antigravity/Cache/Cache_Data",
+        "~/Library/Application Support/Antigravity/Code Cache",
+        "~/Library/Application Support/Postman/proxy",
         "~/Library/Caches/Firefox/Profiles/*/cache2",
         "~/Library/Caches/com.microsoft.VSCode.ShipIt",
         "~/Library/Application Support/Code/Cache/Cache_Data",
@@ -253,7 +264,7 @@
         "~/Library/Caches/Google/AndroidStudio*",
         "~/Library/Logs/Google/AndroidStudio*"
       ],
-      "default_enabled": false,
+      "default_enabled": true,
       "risk_level": "safe"
     },
     {
@@ -264,15 +275,17 @@
       "description": "Tarballs e binários de cache do npm, Yarn Classic/Berry, pnpm store cache, Bun, Cypress e navegadores de teste Playwright.",
       "target_paths": [
         "~/.npm/_cacache",
+        "~/.npm/_logs",
         "~/Library/Caches/Yarn",
         "~/.yarn/berry/cache",
         "~/Library/Caches/pnpm",
+        "~/Library/pnpm/store/v3/tmp",
         "~/.bun/install/cache",
         "~/Library/Caches/Cypress",
         "~/.cache/Cypress",
         "~/Library/Caches/ms-playwright"
       ],
-      "default_enabled": false,
+      "default_enabled": true,
       "risk_level": "safe"
     },
     {
@@ -292,7 +305,7 @@
         "~/.cache/ruff",
         "~/.cache/pytest"
       ],
-      "default_enabled": false,
+      "default_enabled": true,
       "risk_level": "safe"
     },
     {
@@ -303,12 +316,14 @@
       "description": "Caches de build do Gradle, crates do Rust Cargo, cache de compilação Go, pods do CocoaPods e temporários do Flutter/Pub.",
       "target_paths": [
         "~/.gradle/caches",
+        "~/.gradle/daemon",
+        "~/.m2/repository/.cache",
         "~/.cargo/registry/cache",
         "~/Library/Caches/go-build",
         "~/Library/Caches/CocoaPods",
         "~/.pub-cache/_temp"
       ],
-      "default_enabled": false,
+      "default_enabled": true,
       "risk_level": "safe"
     },
     {

@@ -52,6 +52,134 @@ MACOS_DEVELOPER_WHITELIST: Set[str] = {
 }
 
 
+def _probe_macos_volume_metrics(mount_point: str = "/") -> Dict[str, int]:
+    """
+    Reconcilia métricas do container APFS no macOS (RF-20 / ADR-012):
+    - Combina statvfs (shutil.disk_usage), diskutil info -plist, SPStorageDataType e Foundation NSURL.
+    - Calcula total_bytes, raw_free_bytes, raw_used_bytes, purgeable_bytes,
+      free_bytes (disponível efetivo com purgável, padrão Ajustes do Sistema) e
+      used_bytes (usado efetivo descontando purgável, padrão Ajustes do Sistema).
+    """
+    probe_path = (
+        "/System/Volumes/Data"
+        if (mount_point == "/" and os.path.exists("/System/Volumes/Data"))
+        else mount_point
+    )
+    usage = shutil.disk_usage(probe_path)
+    total_bytes = int(usage.total)
+    raw_free_bytes = int(usage.free)
+    raw_used_bytes = max(0, total_bytes - raw_free_bytes)
+    purgeable_bytes = 0
+    diskutil_purgeable = 0
+
+    if sys.platform == "darwin":
+        targets = [probe_path, "/"] if (mount_point == "/" and probe_path != "/") else [probe_path]
+        for target in targets:
+            try:
+                d_res = subprocess.run(
+                    ["diskutil", "info", "-plist", target],
+                    capture_output=True,
+                    timeout=4,
+                    check=False,
+                )
+                if d_res.returncode == 0 and d_res.stdout:
+                    d_info = plistlib.loads(d_res.stdout)
+                    p_space = int(d_info.get("PurgeableSpace", 0) or 0)
+                    diskutil_purgeable = max(diskutil_purgeable, p_space)
+                    purgeable_bytes = max(purgeable_bytes, p_space)
+
+                    c_total = int(
+                        d_info.get("APFSContainerSize", 0)
+                        or d_info.get("ContainerTotalSpace", 0)
+                        or d_info.get("TotalSize", 0)
+                        or 0
+                    )
+                    if c_total > 0 and (
+                        total_bytes <= 0
+                        or abs(c_total - total_bytes) <= max(int(total_bytes * 0.05), 1024 * 1024 * 1024)
+                    ):
+                        total_bytes = c_total
+
+                    c_free = int(
+                        d_info.get("APFSContainerFree", 0)
+                        or d_info.get("ContainerFreeSpace", 0)
+                        or d_info.get("FreeSpace", 0)
+                        or 0
+                    )
+                    if c_free > 0 and raw_free_bytes <= 0:
+                        raw_free_bytes = c_free
+            except Exception:
+                pass
+
+        if mount_point == "/":
+            try:
+                sp_res = subprocess.run(
+                    ["system_profiler", "-json", "SPStorageDataType"],
+                    capture_output=True,
+                    timeout=6,
+                    check=False,
+                )
+                if sp_res.returncode == 0 and sp_res.stdout:
+                    sp_data = json.loads(sp_res.stdout.decode("utf-8", errors="ignore"))
+                    for item in sp_data.get("SPStorageDataType", []):
+                        if item.get("mount_point") in ("/", "/System/Volumes/Data"):
+                            sp_total = int(item.get("size_in_bytes", 0) or 0)
+                            sp_free = int(item.get("free_space_in_bytes", 0) or 0)
+                            if sp_total > 0 and (
+                                total_bytes <= 0
+                                or abs(sp_total - total_bytes) <= max(int(total_bytes * 0.05), 1024 * 1024 * 1024)
+                            ):
+                                total_bytes = sp_total
+                                if sp_free >= raw_free_bytes and sp_free <= total_bytes:
+                                    purgeable_bytes = max(purgeable_bytes, sp_free - raw_free_bytes)
+            except Exception:
+                pass
+
+        # No macOS Sonoma/Sequoia, quando PurgeableSpace não vem no diskutil plist,
+        # o Finder e os Ajustes do Sistema consultam NSURLVolumeAvailableCapacityForImportantUsageKey
+        if mount_point == "/" and diskutil_purgeable == 0:
+            try:
+                jxa_script = (
+                    'ObjC.import("Foundation");'
+                    'const url=$.NSURL.fileURLWithPath("/");'
+                    'const rT=Ref(),rA=Ref(),rI=Ref();'
+                    'url.getResourceValueForKeyError(rT,$.NSURLVolumeTotalCapacityKey,null);'
+                    'url.getResourceValueForKeyError(rA,$.NSURLVolumeAvailableCapacityKey,null);'
+                    'url.getResourceValueForKeyError(rI,$.NSURLVolumeAvailableCapacityForImportantUsageKey,null);'
+                    'JSON.stringify({total:ObjC.unwrap(rT[0])||0,avail:ObjC.unwrap(rA[0])||0,important:ObjC.unwrap(rI[0])||0});'
+                )
+                ns_res = subprocess.run(
+                    ["osascript", "-l", "JavaScript", "-e", jxa_script],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    check=False,
+                )
+                if ns_res.returncode == 0 and ns_res.stdout:
+                    ns_data = json.loads(ns_res.stdout.strip())
+                    ns_total = int(ns_data.get("total", 0) or 0)
+                    ns_avail = int(ns_data.get("avail", 0) or 0)
+                    ns_imp = int(ns_data.get("important", 0) or 0)
+                    if ns_total > 0 and abs(ns_total - total_bytes) <= max(int(total_bytes * 0.05), 1024 * 1024 * 1024):
+                        if ns_imp > ns_avail and (ns_imp - ns_avail) <= total_bytes:
+                            purgeable_bytes = max(purgeable_bytes, ns_imp - ns_avail)
+            except Exception:
+                pass
+
+    raw_used_bytes = max(0, total_bytes - raw_free_bytes)
+    effective_free_bytes = min(total_bytes, raw_free_bytes + max(0, purgeable_bytes))
+    effective_used_bytes = max(0, total_bytes - effective_free_bytes)
+
+    return {
+        "total_bytes": total_bytes,
+        "used_bytes": effective_used_bytes,
+        "free_bytes": effective_free_bytes,
+        "raw_used_bytes": raw_used_bytes,
+        "raw_free_bytes": raw_free_bytes,
+        "purgeable_bytes": max(0, purgeable_bytes),
+    }
+
+
 class MacOSSystemProbeAdapter(ISystemProbePort):
     """Inspeciona macOS, privilégios root, RAM via sysctl e volumes APFS sem duplicar /System/Volumes/Data."""
 
@@ -99,11 +227,15 @@ class MacOSSystemProbeAdapter(ISystemProbePort):
         seen_signatures: Set[ tuple[int, int] ] = set()
 
         try:
-            usage = shutil.disk_usage(root_probe)
-            total = usage.total
-            free = usage.free
-            used = total - free if total >= free else usage.used
+            metrics = _probe_macos_volume_metrics("/")
+            total = metrics["total_bytes"]
+            used = metrics["used_bytes"]
+            free = metrics["free_bytes"]
+            raw_used = metrics["raw_used_bytes"]
+            raw_free = metrics["raw_free_bytes"]
+            purgeable = metrics["purgeable_bytes"]
             percent = (used / total * 100.0) if total > 0 else 0.0
+            seen_signatures.add((total, raw_free))
             seen_signatures.add((total, free))
 
             if percent >= 90.0:
@@ -133,6 +265,10 @@ class MacOSSystemProbeAdapter(ISystemProbePort):
                     health_class=health_class,
                     health_desc=health_desc,
                     filesystem="APFS",
+                    purgeable_bytes=purgeable,
+                    raw_used_bytes=raw_used,
+                    raw_free_bytes=raw_free,
+                    use_si_units=True,
                 )
             )
         except OSError:
@@ -161,22 +297,27 @@ class MacOSSystemProbeAdapter(ISystemProbePort):
                     if real_p in seen_realpaths or real_p.startswith("/System/Volumes/"):
                         continue
                     try:
-                        v_usage = shutil.disk_usage(entry.path)
-                        sig = (v_usage.total, v_usage.free)
+                        v_metrics = _probe_macos_volume_metrics(entry.path)
+                        v_total = v_metrics["total_bytes"]
+                        v_free = v_metrics["free_bytes"]
+                        v_raw_free = v_metrics["raw_free_bytes"]
+                        sig_raw = (v_total, v_raw_free)
+                        sig_eff = (v_total, v_free)
                         # Se tem exatamente o mesmo total e free do container APFS raiz, é um firmlink/volume do mesmo container
-                        if sig in seen_signatures or v_usage.total <= 0:
+                        if sig_raw in seen_signatures or sig_eff in seen_signatures or v_total <= 0:
                             continue
                         seen_realpaths.add(real_p)
-                        seen_signatures.add(sig)
-                        v_used = v_usage.total - v_usage.free
-                        v_pct = (v_used / v_usage.total * 100.0) if v_usage.total > 0 else 0.0
+                        seen_signatures.add(sig_raw)
+                        seen_signatures.add(sig_eff)
+                        v_used = v_metrics["used_bytes"]
+                        v_pct = (v_used / v_total * 100.0) if v_total > 0 else 0.0
                         partitions.append(
                             PartitionInfo(
                                 mount_point=entry.path,
                                 drive_letter=entry.name,
-                                total_bytes=v_usage.total,
+                                total_bytes=v_total,
                                 used_bytes=v_used,
-                                free_bytes=v_usage.free,
+                                free_bytes=v_free,
                                 percent_used=round(v_pct, 1),
                                 is_os_drive=False,
                                 role="Volume Externo / Secundário Montado",
@@ -184,6 +325,10 @@ class MacOSSystemProbeAdapter(ISystemProbePort):
                                 health_class="warning" if v_pct >= 90 else "success",
                                 health_desc="Volume externo ou imagem de disco montada em /Volumes.",
                                 filesystem="APFS/ExFAT",
+                                purgeable_bytes=v_metrics["purgeable_bytes"],
+                                raw_used_bytes=v_metrics["raw_used_bytes"],
+                                raw_free_bytes=v_raw_free,
+                                use_si_units=True,
                             )
                         )
                     except OSError:
@@ -568,18 +713,23 @@ class MacOSHardwareProbeAdapter(IHardwareProbePort):
 
     def get_disks_health(self) -> List[StorageDiskHealth]:
         disks: List[StorageDiskHealth] = []
-        purgeable_bytes = 0
+        root_metrics = {
+            "total_bytes": 0,
+            "used_bytes": 0,
+            "free_bytes": 0,
+            "raw_used_bytes": 0,
+            "raw_free_bytes": 0,
+            "purgeable_bytes": 0,
+        }
+        try:
+            root_metrics = _probe_macos_volume_metrics("/")
+        except Exception:
+            pass
+
+        purgeable_bytes = root_metrics["purgeable_bytes"]
         snapshots_count = 0
 
         if sys.platform == "darwin":
-            try:
-                d_res = subprocess.run(["diskutil", "info", "-plist", "/"], capture_output=True, timeout=5, check=False)
-                if d_res.returncode == 0 and d_res.stdout:
-                    d_info = plistlib.loads(d_res.stdout)
-                    purgeable_bytes = int(d_info.get("PurgeableSpace", 0) or 0)
-            except Exception:
-                pass
-
             try:
                 t_res = subprocess.run(["tmutil", "listlocalsnapshots", "/"], capture_output=True, timeout=5, check=False)
                 if t_res.returncode == 0 and t_res.stdout:
@@ -620,7 +770,21 @@ class MacOSHardwareProbeAdapter(IHardwareProbePort):
                             risk_alert = "Falha física iminente detectada no S.M.A.R.T.! Faça backup urgente dos dados."
 
                         is_root_disk = mount_point == "/"
-                        p_bytes = purgeable_bytes if is_root_disk else 0
+                        if is_root_disk and root_metrics["total_bytes"] > 0:
+                            d_total = root_metrics["total_bytes"]
+                            d_used = root_metrics["used_bytes"]
+                            d_free = root_metrics["free_bytes"]
+                            d_raw_used = root_metrics["raw_used_bytes"]
+                            d_raw_free = root_metrics["raw_free_bytes"]
+                            p_bytes = root_metrics["purgeable_bytes"]
+                        else:
+                            d_total = size_bytes
+                            d_free = free_bytes
+                            d_used = max(0, size_bytes - free_bytes)
+                            d_raw_used = d_used
+                            d_raw_free = d_free
+                            p_bytes = purgeable_bytes if is_root_disk else 0
+
                         s_count = snapshots_count if is_root_disk else 0
 
                         disks.append(
@@ -635,25 +799,28 @@ class MacOSHardwareProbeAdapter(IHardwareProbePort):
                                 is_nvme=is_nvme,
                                 recommended_action="Manutenção APFS & TRIM" if is_ssd else "Análise de Fragmentação",
                                 risk_alert=risk_alert,
-                                total_bytes=size_bytes,
-                                free_bytes=free_bytes,
+                                total_bytes=d_total,
+                                free_bytes=d_free,
                                 purgeable_bytes=p_bytes,
                                 apfs_snapshots_count=s_count,
+                                used_bytes=d_used,
+                                raw_used_bytes=d_raw_used,
+                                raw_free_bytes=d_raw_free,
+                                use_si_units=True,
                             )
                         )
             except Exception:
                 pass
 
-        if not disks:
-            # Fallback seguro para Macintosh HD
-            total_b = 512 * 1024 * 1024 * 1024
-            free_b = 200 * 1024 * 1024 * 1024
-            try:
-                usage = shutil.disk_usage("/")
-                total_b = usage.total
-                free_b = usage.free
-            except Exception:
-                pass
+        if disks:
+            disks.sort(key=lambda d: 0 if d.name.endswith("(/)") else 1)
+        else:
+            # Fallback seguro para Macintosh HD usando métricas reconciliadas
+            total_b = root_metrics["total_bytes"] or (512 * 1024 * 1024 * 1024)
+            free_b = root_metrics["free_bytes"] or (200 * 1024 * 1024 * 1024)
+            used_b = root_metrics["used_bytes"] or max(0, total_b - free_b)
+            raw_used_b = root_metrics["raw_used_bytes"] or used_b
+            raw_free_b = root_metrics["raw_free_bytes"] or free_b
             disks.append(
                 StorageDiskHealth(
                     device_id="disk0s1",
@@ -669,6 +836,10 @@ class MacOSHardwareProbeAdapter(IHardwareProbePort):
                     free_bytes=free_b,
                     purgeable_bytes=purgeable_bytes,
                     apfs_snapshots_count=snapshots_count,
+                    used_bytes=used_b,
+                    raw_used_bytes=raw_used_b,
+                    raw_free_bytes=raw_free_b,
+                    use_si_units=True,
                 )
             )
         return disks

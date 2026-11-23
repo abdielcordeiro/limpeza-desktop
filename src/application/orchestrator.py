@@ -175,6 +175,23 @@ class OrchestratorService:
             return partitions_mount_points or [os.path.expanduser("~")]
 
         user_home = os.path.expanduser("~")
+
+        # Coleta dinâmica de todas as subpastas de 1º nível de ~ (visíveis e ocultas) - RF-18
+        home_subdirs: List[str] = []
+        if os.path.exists(user_home) and os.path.isdir(user_home):
+            try:
+                with os.scandir(user_home) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                if entry.name in ("Library", ".Trash"):
+                                    continue
+                                home_subdirs.append(entry.path)
+                        except OSError:
+                            continue
+            except OSError:
+                pass
+
         if plan.os_platform == OSPlatform.WINDOWS:
             appdata_root = os.path.join(os.environ.get("USERPROFILE", user_home), "AppData")
             if plan.scan_scope == ScanScope.APPDATA_LIBRARY:
@@ -185,15 +202,21 @@ class OrchestratorService:
                 os.path.join(os.environ.get("USERPROFILE", user_home), "Downloads"),
                 os.environ.get("ProgramFiles", r"C:\Program Files"),
                 os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
-            ]
+            ] + home_subdirs
             existing = [p for p in candidates if p and os.path.exists(p)]
-            return existing if existing else [user_home]
+            seen_p = set()
+            dedup_existing = []
+            for p in existing:
+                if p not in seen_p:
+                    seen_p.add(p)
+                    dedup_existing.append(p)
+            return dedup_existing if dedup_existing else [user_home]
         else:
             # macOS
             lib_root = os.path.expanduser("~/Library")
             if plan.scan_scope == ScanScope.APPDATA_LIBRARY:
                 return [lib_root] if os.path.exists(lib_root) else [user_home]
-            # SMART_FAST no macOS (focado nas pastas de maior acúmulo sem travar o sistema - RF-15)
+            # SMART_FAST no macOS abrangente (RF-15 / RF-18 / ADR-011)
             candidates = [
                 os.path.expanduser("~/Library/Application Support"),
                 os.path.expanduser("~/Library/Containers"),
@@ -204,19 +227,21 @@ class OrchestratorService:
                 os.path.expanduser("~/Library/HTTPStorages"),
                 os.path.expanduser("~/Library/WebKit"),
                 os.path.expanduser("~/Library/Logs"),
-                os.path.expanduser("~/.cache"),
-                os.path.expanduser("~/.npm"),
-                os.path.expanduser("~/.gradle"),
-                os.path.expanduser("~/.cargo"),
-                os.path.expanduser("~/.orbstack"),
                 os.path.expanduser("~/Library/Messages/Attachments"),
                 os.path.expanduser("~/Library/Application Support/MobileSync/Backup"),
-                os.path.expanduser("~/Downloads"),
                 "/Applications",
                 os.path.expanduser("~/Applications"),
-            ]
+                "/Library/Developer",
+                "/opt/homebrew",
+            ] + home_subdirs
             existing = [p for p in candidates if os.path.exists(p)]
-            return existing if existing else [user_home]
+            seen_p = set()
+            dedup_existing = []
+            for p in existing:
+                if p not in seen_p:
+                    seen_p.add(p)
+                    dedup_existing.append(p)
+            return dedup_existing if dedup_existing else [user_home]
 
     def execute_plan(
         self,
@@ -419,6 +444,17 @@ class OrchestratorService:
             f"| Potencial adicional mapeado: {format_bytes(potential_extra)}.",
         )
 
+        # Constrói o relatório Raio-X de armazenamento (RF-18 / ADR-011)
+        storage_xray = None
+        try:
+            storage_xray = self.scanner.build_storage_xray(
+                os_platform=plan.os_platform,
+                partitions=final_partitions,
+                hardware_health=hardware_health,
+            )
+        except Exception:
+            pass
+
         report = SystemExecutionReport(
             session_id=session_id,
             executed_at=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
@@ -443,6 +479,7 @@ class OrchestratorService:
             execution_logs=logs,
             hardware_health=hardware_health,
             storage_optimizations=[],
+            storage_xray=storage_xray,
         )
         self.last_report = report
         return report
@@ -990,3 +1027,8 @@ class OrchestratorService:
         if self.last_report:
             self.last_report.storage_optimizations.append(result)
         return result
+
+    def inspect_directory(self, target_path: str, max_items: int = 30) -> Dict[str, Any]:
+        """Inspeciona diretório e seus nós filhos sob demanda via scanner de disco (RF-19 / ADR-011)."""
+        target_os = self.last_plan.os_platform if self.last_plan else OSPlatform.detect_current()
+        return self.scanner.inspect_directory(target_path, os_platform=target_os, max_items=max_items)

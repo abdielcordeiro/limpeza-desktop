@@ -104,15 +104,15 @@ flowchart TB
 flowchart LR
     subgraph Presentation["Camada de Entrada & Apresentação (Primary Adapters)"]
         EntryCLI["CLI Runner (main.py)"]
-        LocalWebServer["LocalControlPanelServer (127.0.0.1)<br/>• GET /, /report, /api/context, /api/status, /api/live-health<br/>• POST /api/execute, /api/clean-selected, /api/file-action<br/>• POST /api/reveal-path, /api/execute-rule, /api/reanalyze<br/>• POST /api/optimize-disk, /api/startup-action, /api/process-action<br/>• POST /api/upgrade-packages, /api/undo"]
+        LocalWebServer["LocalControlPanelServer (127.0.0.1)<br/>• GET /, /report, /api/context, /api/status, /api/live-health<br/>• POST /api/execute, /api/clean-selected, /api/file-action<br/>• POST /api/reveal-path, /api/execute-rule, /api/reanalyze<br/>• POST /api/inspect-directory, /api/optimize-disk<br/>• POST /api/startup-action, /api/process-action<br/>• POST /api/upgrade-packages, /api/undo"]
         HTMLGen["HTML Dashboard Generator (html_reporter.py)"]
     end
 
     subgraph Application["Camada de Aplicação (OrchestratorService / Use Cases)"]
         UC_Plan["Build & Execute Plan"]
         UC_Clean["Autonomous & Single-Rule Cleanup"]
-        UC_FileAct["Interactive File Action (Trash / Delete / Reveal)"]
-        UC_Scan["Deep Disk Scan & Bundle-ID Orphan Correlation"]
+        UC_FileAct["Interactive File Action (Trash / Delete / Reveal / Inspect Tree)"]
+        UC_Scan["Deep Disk Scan, Storage X-Ray ('Documentos' & 'Dados do Sistema') & Bundle-ID Orphans"]
         UC_Opt["Apply & Revert System Tweaks (Undo)"]
         UC_Hw["Live Hardware Telemetry, Startup & Process Inspector"]
         UC_Advisor["Longevity Health Score (0-100) & Actionable Advisor"]
@@ -120,7 +120,7 @@ flowchart LR
     end
 
     subgraph Domain["Camada de Domínio (Pura - Sem Dependências Externas)"]
-        Entities["Entities: PartitionInfo, CleanableItem, OccupantItem, InstalledAppInfo,<br/>HardwareHealthInfo, StorageDiskHealth, MemoryDiagnostics, BatteryHealth,<br/>StartupItemInfo, ProcessDiagnosticInfo, LongevityRecommendation, LongevityScoreReport"]
+        Entities["Entities: PartitionInfo, CleanableItem, OccupantItem, InstalledAppInfo,<br/>StorageCategoryBreakdown, StorageXRayReport, DirectoryInspectionNode,<br/>HardwareHealthInfo, StorageDiskHealth, MemoryDiagnostics, BatteryHealth,<br/>StartupItemInfo, ProcessDiagnosticInfo, LongevityRecommendation, LongevityScoreReport"]
         ValueObjects["Value Objects: OSPlatform, RiskLevel, SafetyClassification, ExecutionMode, ScanScope"]
         Ports["Interfaces de Porta (Ports):<br/>ISystemProbePort, IActiveAppsPort, IFileSystemCleanerPort, IDiskScannerPort,<br/>ISystemTweakPort, ICloudAndPackagesPort, IHardwareProbePort, IStorageOptimizationPort, ISnapshotRepositoryPort"]
     end

@@ -175,6 +175,48 @@ Este documento registra as decisões arquiteturais críticas do projeto **Limpez
 - **Consequências:**
   - Experiência de painel de controle desktop completo, reativo e seguro, com quarentena nativa via Lixeira e proteção estrita contra exclusão de arquivos do sistema operacional.
 
+---
+
+## ADR-011: Raio-X das Categorias Ocultas de Armazenamento ("Documentos" & "Dados do Sistema"), Varredura Completa da Home (`~`), Artefatos Reconstruíveis de Projetos e Navegação em Árvore Sob Demanda (`/api/inspect-directory`)
+- **Status:** Aceito
+- **Data:** 2026-11-22
+- **Contexto:**
+  Durante os testes em produção no macOS Apple Silicon (`219,68 GB / 245,11 GB usados`), identificou-se que os Ajustes do Sistema do macOS exibiam **`18,67 GB` em Documentos** e **`148,52 GB` em Dados do Sistema**, mas o navegador nativo da Apple não revelava o que ocupava os `18,67 GB` de Documentos (pois oculta todos os `dot-folders` `~/.*` e não agrega árvores de código) nem oferecia inspeção de `Dados do Sistema`. Na nossa aplicação, 5 fatores impediam a visibilidade e a evolução real na remoção:
+  1. O escopo padrão `SMART_FAST` no `OrchestratorService._resolve_scan_targets()` olhava apenas `~/Library/...`, `~/Downloads` e 5 dotfiles específicos, deixando de fora `~/Documents`, `~/Desktop`, `~/IdeaProjects` (e demais pastas do usuário em `~`) bem como todas as demais pastas ocultas `~/.*` (`~/.gemini`, `~/.cursor`, `~/.vscode`, `~/.ollama`, `~/.lmstudio`, `~/.docker`, `~/.nvm`, `~/.pyenv`, `~/.sdkman`, `~/.rustup`, `~/.m2`, `~/.pub-cache`, `~/.cocoapods`, `~/.android`, `~/.local`, `~/.config`).
+  2. O catálogo `safe_cleanup_rules.json` mantinha `default_enabled: false` nas regras de maior peso para desenvolvedores (`mac_jetbrains_caches`, `mac_node_js_caches`, `mac_python_dev_caches`, `mac_jvm_native_mobile_caches`, `win_dev_caches`), além de limpar apenas 4 subpastas fixas em `@DARWIN_USER_CACHE_DIR@` e apenas o perfil `Default` de navegadores Chromium.
+  3. Em `AutonomousCleanerAdapter.execute_rule()`, alvos resolvidos via wildcard (`/*`) eram limpos com `remove_root=False`, mantendo milhares de subpastas de cache vazias.
+  4. Em `DiskScannerAdapter.scan_and_evaluate()`, pastas de dependências e build (`node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.next`, `Pods`) eram medidas mas não registradas em `clean_candidates`.
+  5. A deduplicação hierárquica em `top_occupants` ocultava subpastas sob a pasta pai e limitava `sub_occupants` a 1 nível de 5 itens, impedindo navegação profunda.
+- **Decisão:**
+  1. **Descoberta Dinâmica Completa da Home (`~`) em `SMART_FAST`:** Escanear dinamicamente todas as subpastas de primeiro nível de `~` (visíveis e ocultas `~/.*`) junto com os diretórios de `~/Library`, `/Library/Developer` e `/opt/homebrew`.
+  2. **Motor de Raio-X de Armazenamento (`StorageXRayReport` & `StorageCategoryBreakdown`):** Decompor explicitamente no relatório e na Aba 1:
+     - **Raio-X de "Documentos & Pasta Pessoal (`~`)":** Pastas Visíveis & Projetos (`~/Documents`, `~/IdeaProjects`, `~/Desktop`, `~/Downloads`), Pastas Ocultas `~/.*` ("Espaço Fantasma") e Artefatos Reconstruíveis de Projetos (`node_modules`, `.venv`, `target`, `build`, `.dart_tool`, etc.).
+     - **Raio-X de "Dados do Sistema (`System Data`)":** Containers/VMs (`Docker.raw`, `OrbStack`, `Colima`), `Application Support`, `Caches` & Darwin `/private/var/folders`, `Developer` & Simuladores (`CoreSimulator/Devices`, `Android SDK/AVD`), Package Managers (`/opt/homebrew`, `pnpm`, `m2`, `gradle`, `cargo`), Modelos Locais de IA (`ollama`, `lmstudio`, `huggingface`, `.gemini`, `.cursor`), Memória Virtual/Swap/Logs (`/private/var/vm`) e Snapshots APFS/Purgeable.
+  3. **Habilitação Padrão (`default_enabled: true`) & Limpeza Profunda Real:** Ativar por padrão todas as regras seguras de caches de desenvolvimento, usar `remove_root=True` para subpastas resolvidas por wildcard (`/*`) e expandir wildcards multi-perfil (`Profile *`) e `@DARWIN_USER_CACHE_DIR@/*`.
+  4. **Explorador de Árvore Sob Demanda (`POST /api/inspect-directory`):** Permitir drill-down recursivo infinito em qualquer diretório diretamente pelo Dashboard Web (`127.0.0.1`), listando subpastas e arquivos ordenados por tamanho físico real (`st_blocks * 512`) com ações diretas (`📂 Abrir`, `🗑️ Lixeira`, `🔥 Excluir`).
+- **Consequências:**
+  - Transparência total sobre os gigabytes ocultos em "Documentos" e "Dados do Sistema" e salto real na recuperação de espaço em máquinas de usuários e desenvolvedores.
+
+---
+
+## ADR-012: Reconciliação de Armazenamento APFS no macOS (Unidades SI Base-10 $1000^3$ vs IEC Base-2 $1024^3$ e Desconto de `PurgeableSpace`)
+- **Status:** Aceito
+- **Data:** 2026-11-23
+- **Contexto:**
+  Durante a validação lado a lado com os **Ajustes do Sistema > Geral > Armazenamento** do macOS em um volume APFS de 256 GB (`245.107.195.904` bytes), constatou-se uma divergência visual e numérica importante: enquanto o macOS informava **`217,1 GB de 245,11 GB usados`**, o card principal da nossa aplicação exibia **`Usado: 202.65 GB (88.8%) | Livre: 25.62 GB / 228.27 GB`**.
+  A investigação técnica identificou duas causas combinadas:
+  1. **Base-2 (IEC `GiB`, $1024^3$) rotulada como `GB` vs Base-10 (SI `GB`, $1000^3$):** Desde o Mac OS X 10.6, todo o ecossistema macOS (`Finder`, `Ajustes do Sistema`, `diskutil`, `system_profiler`) calcula armazenamento em potências de $1000$ ($245.107.195.904 / 1000^3 = 245,11\text{ GB}$ e $217.593.780.633 / 1000^3 = 217,59\text{ GB}$), enquanto `format_bytes()` dividia por $1024^3$ ($228,27\text{ GiB}$ e $202,65\text{ GiB}$), gerando uma defasagem de `7,37%` (~15 GB).
+  2. **Alocação Bruta `statvfs` vs Espaço Purgável APFS (`PurgeableSpace`):** A chamada `shutil.disk_usage("/System/Volumes/Data")` retorna apenas blocos físicos livres imediatos (`raw_free = 27,51 GB`), sem contabilizar o `PurgeableSpace` (`~490 MB` a vários GBs em caches/snapshots APFS que o kernel Darwin libera sob demanda). O painel de Armazenamento do macOS (`StorageKit` / `SPStorageDataType`) soma o `PurgeableSpace` ao espaço disponível (`27,51 GB + 0,49 GB = 28,00 GB` disponíveis), resultando em `245,11 GB - 28,00 GB = 217,11 GB` (`217,1 GB`) usados. Além disso, `MacOSSystemProbeAdapter.get_partitions()` e `MacOSHardwareProbeAdapter.get_disks_health()` consultavam fontes distintas sem reconciliação.
+- **Decisão:**
+  1. **Funções de Formatação Explícitas (`format_bytes_si` em Base-10 $1000^3$ e `format_bytes_binary` em Base-2 $1024^3$):** Manter `format_bytes()` compatível e introduzir formatação SI Decimal (`1000^3`) para volumes e métricas de disco APFS/Storage (`use_si_units=True` no macOS), além de expor os campos binários explícitos (`GiB`) como metadado técnico complementar.
+  2. **Sonda Unificada de Container APFS (`_probe_apfs_volume_metrics`):** Reconciliar `shutil.disk_usage`, `diskutil info -plist /System/Volumes/Data` (e `/`) e `system_profiler -json SPStorageDataType` tanto em `MacOSSystemProbeAdapter.get_partitions()` quanto em `MacOSHardwareProbeAdapter.get_disks_health()`, preenchendo em `PartitionInfo` e `StorageDiskHealth`:
+     - `total_bytes`, `used_bytes` (efetivo padrão macOS Settings), `free_bytes` (disponível efetivo com purgável)
+     - `raw_used_bytes` (alocado físico bruto APFS), `raw_free_bytes` (livre físico imediato `statvfs`), `purgeable_bytes` (`Espaço Purgável APFS`)
+  3. **Transparência Visual Dual na UI (Aba 1, Aba 8 e Janela Inicial `/`):** Exibir o valor principal idêntico aos Ajustes do Sistema do macOS (`217.10 GB / 245.11 GB`) acompanhado de uma barra de metadados técnicos exibindo o `Alocado Bruto APFS`, o `Espaço Purgável` e o `Equivalente Binário IEC (GiB)`.
+- **Consequências:**
+  - Alinhamento 1:1 com os números reportados pelos Ajustes do Sistema do macOS, evitando confusão do usuário e garantindo precisão nos cálculos de saúde NAND e alertas de capacidade em toda a aplicação.
+
+
 
 
 

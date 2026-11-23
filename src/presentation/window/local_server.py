@@ -357,7 +357,8 @@ LAUNCHER_HTML = """<!DOCTYPE html>
                         <strong>💽 ${escapeHtml(p.drive_letter)}</strong>
                         <span class="pill">${escapeHtml(p.percent_used)}% usado</span>
                     </div>
-                    <div class="desc-small">Livre: <strong>${escapeHtml(p.free_formatted)}</strong> de ${escapeHtml(p.total_formatted)} (${escapeHtml(p.health_status)})</div>
+                    <div class="desc-small">Usado: <strong>${escapeHtml(p.used_formatted)}</strong> | Livre: <strong>${escapeHtml(p.free_formatted)}</strong> de ${escapeHtml(p.total_formatted)} (${escapeHtml(p.health_status)})</div>
+                    ${p.total_binary_formatted ? `<div class="desc-small" style="font-size:0.73rem;">Equivalente Binário (IEC 1024³): ${escapeHtml(p.used_binary_formatted)} / ${escapeHtml(p.total_binary_formatted)}${p.purgeable_bytes > 0 ? ' • Purgável: ' + escapeHtml(p.purgeable_formatted) : ''}</div>` : ''}
                 </div>
             `).join('');
 
@@ -763,6 +764,55 @@ class LocalControlPanelServer:
                 res = self.orchestrator.execute_upgrade_packages(pkg_id)
                 status_code = 200 if res.get("status") == "ok" else 400
                 return status_code, "application/json; charset=utf-8", res
+
+            if parsed.path == "/api/inspect-directory":
+                raw_path = payload.get("path", "")
+                if not raw_path or not isinstance(raw_path, str):
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "Parâmetro 'path' é obrigatório.",
+                    }
+                target_path = raw_path.strip()
+                if not target_path or target_path.startswith("-") or "\x00" in target_path:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "Caminho inválido ou com parâmetros não permitidos.",
+                    }
+                norm = target_path.replace("\\", "/")
+                parts = [p for p in norm.split("/") if p]
+                if ".." in parts:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "Tentativa de Path Traversal bloqueada.",
+                    }
+                try:
+                    max_items = int(payload.get("max_items", 30))
+                except (ValueError, TypeError):
+                    max_items = 30
+
+                try:
+                    res = self.orchestrator.inspect_directory(target_path, max_items=max_items)
+                    return 200, "application/json; charset=utf-8", {"status": "ok", **res}
+                except FileNotFoundError as fnf:
+                    return 404, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": str(fnf),
+                    }
+                except PermissionError as pe:
+                    return 403, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": str(pe),
+                    }
+                except ValueError as ve:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": str(ve),
+                    }
+                except Exception as ex:
+                    return 500, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": f"Erro interno ao inspecionar diretório: {str(ex)}",
+                    }
 
         return 404, "application/json; charset=utf-8", {"error": "Not found"}
 

@@ -889,7 +889,7 @@ class AutonomousCleanerAdapter(IFileSystemCleanerPort):
                     resolved_paths.append(expanded)
                 if (has_wildcard or is_safe_path_to_clean(raw_target)) and is_safe_path_to_clean(expanded) and os.path.exists(expanded):
                     b_freed, f_rem, errs = self._clean_directory_contents(
-                        expanded, mode=mode, remove_root=False
+                        expanded, mode=mode, remove_root=has_wildcard
                     )
                     total_bytes += b_freed
                     total_files += f_rem
