@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Testes de resolução de recursos, especificação PyInstaller e scripts de bootstrap oneliner."""
 import os
+import re
 import sys
 import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -84,6 +86,83 @@ class TestStandalonePackagingAndResources(unittest.TestCase):
         self.assertIn("limpeza-windows.exe", ps_content)
         self.assertIn("Invoke-WebRequest", ps_content)
         self.assertIn("abdielcordeiro/limpeza-desktop", ps_content)
+
+    def test_windows_bootstrap_anti_crash_and_nuget_fallback(self) -> None:
+        """Valida que install-windows.ps1 não usa exit solto (iex-safe), ignora WindowsApps e tem fallback NuGet."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ps_path = os.path.join(repo_root, "install-windows.ps1")
+        with open(ps_path, "r", encoding="utf-8") as f:
+            ps_content = f.read()
+
+        # Não pode conter 'exit' como instrução PowerShell fora de comentários
+        non_comment_lines = [
+            line for line in ps_content.splitlines()
+            if not line.lstrip().startswith("#")
+        ]
+        for line in non_comment_lines:
+            self.assertIsNone(
+                re.search(r"(?:^|[;\s{}])exit(?:\s+\d+|\s*$|;)", line, re.IGNORECASE),
+                f"Encontrado 'exit' inseguro para iex na linha: {line}",
+            )
+
+        self.assertIn("Invoke-LimpezaDesktop", ps_content)
+        self.assertIn("Test-RealPython", ps_content)
+        self.assertIn("WindowsApps", ps_content)
+        self.assertIn("https://www.nuget.org/api/v2/package/python/3.11.9", ps_content)
+        self.assertIn(r"tools\python.exe", ps_content)
+
+    def test_macos_bootstrap_anti_stub_and_portable_runtime(self) -> None:
+        """Valida que install-macos.sh verifica xcode-select -p e possui fallback portátil arm64/x86_64."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sh_path = os.path.join(repo_root, "install-macos.sh")
+        with open(sh_path, "r", encoding="utf-8") as f:
+            sh_content = f.read()
+
+        self.assertIn("xcode-select -p", sh_content)
+        self.assertIn("/usr/bin/python3", sh_content)
+        self.assertIn("aarch64-apple-darwin", sh_content)
+        self.assertIn("x86_64-apple-darwin", sh_content)
+        self.assertIn("python-build-standalone", sh_content)
+
+    def test_main_cp1252_encoding_safety(self) -> None:
+        """Valida que main.py reconfigura stdout/stderr para UTF-8 e não lança UnicodeEncodeError sob cp1252."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        main_path = os.path.join(repo_root, "main.py")
+
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "cp1252"
+
+        proc = subprocess.run(
+            [sys.executable, main_path, "--undo", "non_existent_snap", "--dry-run"],
+            cwd=repo_root,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+        combined_output = (proc.stdout or "") + (proc.stderr or "")
+        self.assertNotIn("UnicodeEncodeError", combined_output)
+        self.assertEqual(proc.returncode, 1)
+
+        # Valida também impressão direta de caracteres Unicode (✓) após importar main
+        unicode_check = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import main; print('✓ UTF-8 seguro no console Windows')",
+            ],
+            cwd=repo_root,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+        self.assertEqual(unicode_check.returncode, 0, unicode_check.stderr)
+        self.assertNotIn("UnicodeEncodeError", unicode_check.stderr or "")
 
 
 if __name__ == "__main__":
