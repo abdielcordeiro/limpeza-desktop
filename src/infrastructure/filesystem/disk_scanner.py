@@ -4,7 +4,7 @@ import os
 import plistlib
 import heapq
 from pathlib import Path
-from typing import List, Dict, Any, Set, Tuple
+from typing import List, Dict, Any, Set, Tuple, Optional
 from src.domain.entities import (
     PartitionInfo,
     OccupantItem,
