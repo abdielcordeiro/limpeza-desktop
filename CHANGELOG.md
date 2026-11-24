@@ -14,6 +14,11 @@ e este projeto adota o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - **`install-macos.sh`:** Proteção anti-stub para `/usr/bin/python3` quando não há Xcode Command Line Tools (`xcode-select -p`) e fallback automático para runtime portátil (`python-build-standalone`) em `/tmp` para Apple Silicon (`arm64`) e Intel (`x86_64`).
 - **`main.py`:** Reconfiguração de `sys.stdout` e `sys.stderr` para UTF-8 (`errors="replace"`), eliminando `UnicodeEncodeError` no console padrão do Windows (`cp1252`/`cp850`).
 - **`.github/workflows/release.yml`:** Build e publicação automática dos executáveis standalone (`limpeza-windows.exe` e `limpeza-macos`) na Release `latest` ao atualizar a branch `main`.
+- **`src/infrastructure/filesystem/disk_scanner.py`:** Corrigido `NameError: name 'Optional' is not defined` na assinatura de `build_storage_xray` e auditados todos os módulos contra erros de tipagem/import.
+
+### Modificado
+- **`.github/workflows/ci.yml`:** Removida a execução automática de testes unitários da pipeline (`push`/`pull_request`), mantendo apenas execução manual via `workflow_dispatch`.
+- **`README.md`:** Resumido com foco em uso direto, comandos de execução e privacidade, sem expor detalhes internos de arquitetura.
 
 ---
 

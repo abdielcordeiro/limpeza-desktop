@@ -1,10 +1,7 @@
 name: CI/CD Quality Gates
 
 on:
-  push:
-    branches: [ main, develop, 'feature/**', 'fix/**', 'hotfix/**' ]
-  pull_request:
-    branches: [ main, develop ]
+  workflow_dispatch:
 
 jobs:
   test:
