@@ -7,6 +7,16 @@ e este projeto adota o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.3.2] - 2026-11-24
+
+### Corrigido
+- **`install-windows.ps1`:** Remoção de `exit` no fluxo `irm ... | iex` (que fechava a janela do PowerShell em qualquer erro), filtro anti-stub contra `WindowsApps\python.exe` da Microsoft Store e fallback automático para **Python portátil oficial PSF (`3.11.9`) em `%TEMP%`** (Zero-Install sem instalador e sem privilégios de Administrador).
+- **`install-macos.sh`:** Proteção anti-stub para `/usr/bin/python3` quando não há Xcode Command Line Tools (`xcode-select -p`) e fallback automático para runtime portátil (`python-build-standalone`) em `/tmp` para Apple Silicon (`arm64`) e Intel (`x86_64`).
+- **`main.py`:** Reconfiguração de `sys.stdout` e `sys.stderr` para UTF-8 (`errors="replace"`), eliminando `UnicodeEncodeError` no console padrão do Windows (`cp1252`/`cp850`).
+- **`.github/workflows/release.yml`:** Build e publicação automática dos executáveis standalone (`limpeza-windows.exe` e `limpeza-macos`) na Release `latest` ao atualizar a branch `main`.
+
+---
+
 ## [1.3.1] - 2026-11-23
 
 ### Corrigido / Adicionado
