@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, Tuple
 from src.domain.value_objects import OSPlatform, ExecutionMode
 from src.application.dtos import ExecutionPlanDTO
 from src.application.orchestrator import OrchestratorService
+from src.infrastructure.filesystem.autonomous_cleaner import is_safe_path_to_clean
 from src.presentation.reporters.html_reporter import generate_html_report
 
 
@@ -356,7 +357,8 @@ LAUNCHER_HTML = """<!DOCTYPE html>
                         <strong>💽 ${escapeHtml(p.drive_letter)}</strong>
                         <span class="pill">${escapeHtml(p.percent_used)}% usado</span>
                     </div>
-                    <div class="desc-small">Livre: <strong>${escapeHtml(p.free_formatted)}</strong> de ${escapeHtml(p.total_formatted)} (${escapeHtml(p.health_status)})</div>
+                    <div class="desc-small">Usado: <strong>${escapeHtml(p.used_formatted)}</strong> | Livre: <strong>${escapeHtml(p.free_formatted)}</strong> de ${escapeHtml(p.total_formatted)} (${escapeHtml(p.health_status)})</div>
+                    ${p.total_binary_formatted ? `<div class="desc-small" style="font-size:0.73rem;">Equivalente Binário (IEC 1024³): ${escapeHtml(p.used_binary_formatted)} / ${escapeHtml(p.total_binary_formatted)}${p.purgeable_bytes > 0 ? ' • Purgável: ' + escapeHtml(p.purgeable_formatted) : ''}</div>` : ''}
                 </div>
             `).join('');
 
@@ -546,6 +548,20 @@ class LocalControlPanelServer:
             if parsed.path == "/api/status":
                 return 200, "application/json; charset=utf-8", self.state
 
+            if parsed.path == "/api/live-health":
+                qs = parse_qs(parsed.query)
+                os_param = qs.get("os", [None])[0]
+                target_os = None
+                if os_param == "windows":
+                    target_os = OSPlatform.WINDOWS
+                elif os_param == "macos":
+                    target_os = OSPlatform.MACOS
+                hw_health = self.orchestrator.get_live_health(target_os)
+                return 200, "application/json; charset=utf-8", {
+                    "status": "ok",
+                    "hardware_health": hw_health.to_dict(),
+                }
+
             if parsed.path == "/report":
                 if not os.path.exists(self.output_report_path):
                     if self.orchestrator.last_report:
@@ -667,6 +683,137 @@ class LocalControlPanelServer:
                     },
                 )
 
+            if parsed.path == "/api/file-action":
+                raw_paths = payload.get("paths", [])
+                paths = [str(p) for p in raw_paths if isinstance(p, str)] if isinstance(raw_paths, list) else []
+                action = str(payload.get("action", "trash")).lower()
+                mode_str = str(payload.get("mode", "real")).lower()
+                mode = ExecutionMode.REAL if mode_str == "real" else ExecutionMode.DRY_RUN
+
+                # Guardrail estrito: valida todos os caminhos fornecidos
+                if not paths or any(not is_safe_path_to_clean(p) for p in paths):
+                    return 403, "application/json; charset=utf-8", {
+                        "status": "forbidden",
+                        "error": "Caminho crítico protegido pelo sistema operacional ou inválido.",
+                    }
+
+                res = self.orchestrator.execute_file_action(paths=paths, action=action, mode=mode)
+                if self.orchestrator.last_report:
+                    generate_html_report(self.orchestrator.last_report, output_filename=self.output_report_path)
+                return 200, "application/json; charset=utf-8", res
+
+            if parsed.path == "/api/reveal-path":
+                target_path = str(payload.get("path", "")).strip()
+                if not target_path or target_path.startswith("-") or "\x00" in target_path:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "Caminho inválido ou com parâmetros não permitidos.",
+                    }
+                res = self.orchestrator.reveal_path(target_path)
+                status_code = 200 if res.get("status") == "ok" else 400
+                return status_code, "application/json; charset=utf-8", res
+
+            if parsed.path == "/api/execute-rule":
+                rule_id = str(payload.get("rule_id", "")).strip()
+                if not rule_id:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "ID da regra não fornecido.",
+                    }
+                mode_str = str(payload.get("mode", "real")).lower()
+                mode = ExecutionMode.REAL if mode_str == "real" else ExecutionMode.DRY_RUN
+                res = self.orchestrator.execute_rule_by_id(rule_id, mode=mode)
+                if self.orchestrator.last_report:
+                    generate_html_report(self.orchestrator.last_report, output_filename=self.output_report_path)
+                status_code = 200 if res.get("status") == "ok" else 404
+                return status_code, "application/json; charset=utf-8", res
+
+            if parsed.path == "/api/startup-action":
+                item_path = str(payload.get("path", "")).strip()
+                action = str(payload.get("action", "remove")).lower()
+                if not item_path:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "Caminho do agente não fornecido.",
+                    }
+                res = self.orchestrator.execute_startup_action(item_path, action=action)
+                if self.orchestrator.last_report:
+                    generate_html_report(self.orchestrator.last_report, output_filename=self.output_report_path)
+                status_code = 200 if res.get("status") == "ok" else 400
+                return status_code, "application/json; charset=utf-8", res
+
+            if parsed.path == "/api/process-action":
+                try:
+                    pid = int(payload.get("pid", 0))
+                except (ValueError, TypeError):
+                    pid = 0
+                if pid <= 100:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "PID protegido pelo sistema operacional ou inválido.",
+                    }
+                action = str(payload.get("action", "terminate")).lower()
+                res = self.orchestrator.execute_process_action(pid, action=action)
+                if self.orchestrator.last_report:
+                    generate_html_report(self.orchestrator.last_report, output_filename=self.output_report_path)
+                status_code = 200 if res.get("status") == "ok" else 400
+                return status_code, "application/json; charset=utf-8", res
+
+            if parsed.path == "/api/upgrade-packages":
+                pkg_id = str(payload.get("package_id", "__all__")).strip()
+                res = self.orchestrator.execute_upgrade_packages(pkg_id)
+                status_code = 200 if res.get("status") == "ok" else 400
+                return status_code, "application/json; charset=utf-8", res
+
+            if parsed.path == "/api/inspect-directory":
+                raw_path = payload.get("path", "")
+                if not raw_path or not isinstance(raw_path, str):
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "Parâmetro 'path' é obrigatório.",
+                    }
+                target_path = raw_path.strip()
+                if not target_path or target_path.startswith("-") or "\x00" in target_path:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "Caminho inválido ou com parâmetros não permitidos.",
+                    }
+                norm = target_path.replace("\\", "/")
+                parts = [p for p in norm.split("/") if p]
+                if ".." in parts:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": "Tentativa de Path Traversal bloqueada.",
+                    }
+                try:
+                    max_items = int(payload.get("max_items", 30))
+                except (ValueError, TypeError):
+                    max_items = 30
+
+                try:
+                    res = self.orchestrator.inspect_directory(target_path, max_items=max_items)
+                    return 200, "application/json; charset=utf-8", {"status": "ok", **res}
+                except FileNotFoundError as fnf:
+                    return 404, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": str(fnf),
+                    }
+                except PermissionError as pe:
+                    return 403, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": str(pe),
+                    }
+                except ValueError as ve:
+                    return 400, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": str(ve),
+                    }
+                except Exception as ex:
+                    return 500, "application/json; charset=utf-8", {
+                        "status": "error",
+                        "message": f"Erro interno ao inspecionar diretório: {str(ex)}",
+                    }
+
         return 404, "application/json; charset=utf-8", {"error": "Not found"}
 
     def create_server(self, port: int = 0) -> Tuple[HTTPServer, int]:
@@ -692,6 +839,18 @@ class LocalControlPanelServer:
                 self._write_response(status, ctype, body)
 
             def do_POST(self) -> None:
+                origin = self.headers.get("Origin")
+                if origin and not (
+                    origin.startswith("http://127.0.0.1")
+                    or origin.startswith("http://localhost")
+                    or origin == "null"
+                ):
+                    self._write_response(403, "application/json; charset=utf-8", {
+                        "status": "forbidden",
+                        "error": "Requisição Cross-Origin bloqueada pela Política Zero-Network.",
+                    })
+                    return
+
                 length = int(self.headers.get("Content-Length", "0"))
                 raw_body = self.rfile.read(length).decode("utf-8", errors="ignore") if length > 0 else "{}"
                 try:

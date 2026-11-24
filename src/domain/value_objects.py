@@ -59,3 +59,31 @@ def format_bytes(size_bytes: float) -> str:
             return f"{value:.2f} {unit}"
         value /= 1024.0
     return f"{value:.2f} PB"
+
+
+def format_bytes_si(size_bytes: float) -> str:
+    """Formata um tamanho em bytes para padrão SI Base-10 Decimal (1000^3 = 1 GB, padrão macOS Finder/Settings)."""
+    if size_bytes <= 0:
+        return "0.00 B"
+    value = float(size_bytes)
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if value < 1000.0:
+            if unit == "B":
+                return f"{int(value)} B"
+            return f"{value:.2f} {unit}"
+        value /= 1000.0
+    return f"{value:.2f} PB"
+
+
+def format_bytes_binary(size_bytes: float) -> str:
+    """Formata um tamanho em bytes para padrão IEC Base-2 Binário explícito (1024^3 = 1 GiB)."""
+    if size_bytes <= 0:
+        return "0.00 B"
+    value = float(size_bytes)
+    for unit in ["B", "KiB", "MiB", "GiB", "TiB"]:
+        if value < 1024.0:
+            if unit == "B":
+                return f"{int(value)} B"
+            return f"{value:.2f} {unit}"
+        value /= 1024.0
+    return f"{value:.2f} PiB"

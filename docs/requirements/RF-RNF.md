@@ -229,6 +229,129 @@ Este documento define o escopo funcional, critérios de aceite e restrições n�
 
 ---
 
+### RF-15: Varredura Profunda e Limpeza Cirúrgica para macOS Apple Silicon (Containers, Dev Ecosystems, Darwin Caches, APFS System Data & Bundle-ID Correlation)
+- **Descrição:** Maximizar a recuperação real e segura de espaço no macOS (Apple Silicon M1/M2/M3/M4 e Intel), eliminando os gargalos de varredura rasa e cobrindo caches de containers sandboxed, diretórios Darwin por usuário, ecossistemas modernos de desenvolvimento, dados do sistema ("System Data" / APFS Purgeable) e correlação precisa de resíduos órfãos por `CFBundleIdentifier`.
+- **Critérios de Aceite:**
+  1. **Expansão Cirúrgica do Catálogo de Limpeza Autônoma do macOS (`safe_cleanup_rules.json`):**
+     - Varredura segura de `~/Library/Caches/*` protegida por whitelist estrita de estados críticos (`CloudKit`, `com.apple.nsurlsessiond`, `com.apple.bird`, `com.apple.HomeKit`, `com.apple.Safari.SafeBrowsing`, `AudioUnitCache`, `PassKit`, `GeoServices`).
+     - Limpeza de caches e logs em Containers Sandboxed: `~/Library/Containers/*/Data/Library/Caches/*`, `~/Library/Containers/*/Data/Library/Logs/*`, `~/Library/Group Containers/*/Library/Caches/*`.
+     - Limpeza de caches temporários Darwin por usuário resolvidos via `getconf DARWIN_USER_CACHE_DIR` e `getconf DARWIN_USER_TEMP_DIR` (`/private/var/folders/.../C/` e `/T/`), removendo caches reconstruíveis de Metal shaders, Clang, QuickLook e ícones.
+     - Limpeza segmentada por ecossistema de desenvolvimento:
+       - **Xcode & Apple SDK:** `DerivedData`, `iOS DeviceSupport`, `watchOS DeviceSupport`, `tvOS DeviceSupport`, `Archives`, `CoreSimulator/Caches`, `com.apple.dt.Xcode`.
+       - **JetBrains & Android Studio:** `~/Library/Caches/JetBrains`, `~/Library/Logs/JetBrains`, `~/Library/Caches/Google/AndroidStudio*`.
+       - **Node.js / Frontend:** `~/.npm/_cacache`, `~/Library/Caches/Yarn`, `~/.yarn/berry/cache`, `~/Library/Caches/pnpm`, `~/.bun/install/cache`, `~/Library/Caches/Cypress`, `~/Library/Caches/ms-playwright`.
+       - **Python:** `~/Library/Caches/pip`, `~/.cache/pip`, `~/Library/Caches/uv`, `~/.cache/uv`, `~/Library/Caches/pypoetry`, `~/.cache/mypy`, `~/.cache/ruff`, `~/.cache/pytest`, `~/.cache/pre-commit`.
+       - **JVM / Mobile / Rust / Go:** `~/.gradle/caches`, `~/.cargo/registry/cache`, `~/Library/Caches/go-build`, `~/Library/Caches/CocoaPods`, `~/.pub-cache/_temp`.
+       - **Homebrew & Containers:** `~/Library/Caches/Homebrew`, `~/Library/Logs/Homebrew`, logs de Docker/OrbStack/Colima.
+  2. **Orçamento Adaptativo de Varredura BFS e Medição Física APFS (`st_blocks * 512`):**
+     - Elevar o orçamento da varredura `DiskScannerAdapter` de `2.500` para orçamento adaptativo de até `25.000` diretórios por execução, com medição rápida de pacotes fechados (`.app`, `node_modules`, `.git`, `.xcarchive`, `.simruntime`) de até `25.000` arquivos utilizando blocos físicos reais (`st_blocks * 512`) no macOS para evitar distorção de sparse files ou placeholders do iCloud.
+  3. **Escopo `SMART_FAST` Abrangente no macOS:**
+     - Incluir `~/Library/Developer`, `~/Library/Group Containers`, `~/Library/HTTPStorages`, `~/Library/WebKit`, `~/.cache`, `~/.npm`, `~/.gradle`, `~/.cargo`, `~/.orbstack`, `~/Library/Messages/Attachments` e `~/Library/Application Support/MobileSync/Backup` (classificando backups de iOS e anexos de mensagens para revisão consciente do usuário).
+  4. **Correlação Estruturada de Resíduos Órfãos (Inspirado no Pearcleaner):**
+     - Evitar a explosão de pacotes `com.apple.pkg.*` do `pkgutil` em tokens genéricos curtos de 3 letras que causavam falsos negativos.
+     - Correlacionar pastas de 12 subdiretórios da `~/Library` (`Application Support`, `Containers`, `Group Containers`, `Caches`, `Preferences`, `Saved Application State`, `HTTPStorages`, `WebKit`, `Logs`, `Cookies`, `Application Scripts`) por `CFBundleIdentifier` completo, prefixo Reverse-DNS e nome canônico do aplicativo.
+     - Não incluir `LaunchAgents` quebrados (cujo binário executável alvo não existe mais no disco) na Camada 3 de proteção, permitindo que seus resíduos órfãos sejam detectados.
+
+---
+
+### RF-16: Ganchos Interativos na Aplicação Web para Ações Diretas de Arquivo, Execução Granular e Gerenciamento de Pacotes
+- **Descrição:** Dotar o Dashboard Web local (`127.0.0.1`) de ganchos interativos em tempo real em todas as abas relevantes, permitindo ao usuário executar ações diretas de limpeza, quarentena na Lixeira, inspeção no Finder/Explorer e atualização de pacotes sem precisar reiniciar o fluxo ou usar o terminal manualmente.
+- **Critérios de Aceite:**
+  1. **Ação Direta sobre Arquivos e Pastas (`POST /api/file-action`):**
+     - Disponível para itens da **Aba 4 (Pastas Órfãs & Caches)** e da **Aba 5 (Top 100 Maiores Arquivos & Pastas + Drill-Down de Subpastas)** que não estejam classificados como `🚫 Não Apagar (Sistema Operacional)`.
+     - Suportar dois modos de remoção selecionáveis pelo usuário:
+       - **`trash` (Mover para a Lixeira — Padrão Seguro Recomendado):** Move o arquivo ou diretório para a Lixeira nativa do usuário (`~/.Trash` no macOS com resolução de colisão de nomes ou Lixeira do Windows) para fácil recuperação caso necessário.
+       - **`delete` (Exclusão Permanente):** Remove definitivamente utilizando o motor resiliente (`_clean_directory_contents` com desbloqueio `chmod`/`chflags nouchg`).
+     - Rejeitar com erro HTTP 403 qualquer tentativa de exclusão de caminhos protegidos pelo guardrail `is_safe_path_to_clean()` ou classificados como `DO_NOT_DELETE`.
+     - Atualizar reativamente o DOM (removendo a linha do item/subpasta apagada) e recalcular instantaneamente os contadores de espaço liberado no topo do Dashboard.
+  2. **Revelar no Finder / Windows Explorer (`POST /api/reveal-path`):**
+     - Botão `"📂 Abrir Local"` em cada linha das Abas 3, 4 e 5 que aciona `open -R <path>` no macOS ou `explorer.exe /select,<path>` no Windows para destacar o item no gerenciador de arquivos nativo.
+  3. **Execução Individual de Regra de Limpeza Autônoma (`POST /api/execute-rule`):**
+     - Na **Aba 2 (Limpeza Autônoma)**, exibir botão `"🧹 Limpar Agora"` para cada regra que tenha sido apenas simulada (`SIMULATED` em modo Dry-Run) ou que possua espaço recuperável, permitindo limpar aquela categoria específica sob demanda e atualizar seu status para `CLEANED` em tempo real.
+  4. **Ação Interativa de Atualização e Limpeza de Pacotes (`POST /api/upgrade-packages`):**
+     - Na **Aba 7 (Cloud & Atualizações)**, permitir acionar a atualização individual de um pacote (`brew upgrade <id>` / `winget upgrade --id <id>`) ou executar `brew cleanup --prune=all` no macOS diretamente pela interface web, exibindo o resultado em toast/log.
+
+---
+
+### RF-17: Telemetria Profunda de Saúde, Inspetor de Persistência/Processos e Motor Consultivo de Vida Útil (`Longevity Health Score 0–100`)
+- **Descrição:** Transformar o painel de Hardware e Saúde em um consultor interativo de conservação e longevidade da máquina, coletando telemetria nativa precisa de engenharia (IOKit/`ioreg` no Apple Silicon e WMI/CIM no Windows), auditando agentes de inicialização órfãos (`LaunchAgents` / `Startup`), inspecionando processos pesados/zumbis e fornecendo recomendações acionáveis em 1 clique.
+- **Critérios de Aceite:**
+  1. **Telemetria Profunda Apple Silicon & Windows:**
+     - **Bateria via IOKit (`ioreg -rn AppleSmartBattery -a`):** Extrair `CycleCount`, `DesignCapacity` (mAh), `RawMaxCapacity` (mAh), saúde calculada real (`%`), temperatura da bateria (`°C`), tensão (`mV`), corrente (`mA`), potência e estado de carga, eliminando falhas de parsing do `system_profiler`.
+     - **Memória Unificada & Swap Thrashing:** Ler `hw.pagesize` (`16384` bytes no Apple Silicon), calcular memória `Active`, `Wired`, `Compressed` e `Cached`, ler nível de pressão real do kernel (`kern.memorystatus_vm_pressure_level`) e monitorar contadores de `Pageouts`/`Swapouts`.
+     - **Storage APFS & Snapshots:** Extrair `Purgeable Space` (`diskutil info -plist /`) e contagem de snapshots locais do Time Machine (`tmutil listlocalsnapshots /`).
+  2. **Auditoria Interativa de Persistência e Inicialização (`LaunchAgents` / `LaunchDaemons` / `Windows Startup`):**
+     - Inspecionar todos os arquivos `.plist` em `~/Library/LaunchAgents`, `/Library/LaunchAgents` e `/Library/LaunchDaemons` (e chaves `HKCU/HKLM...\Run` no Windows).
+     - Extrair o caminho do binário alvo (`Program` ou `ProgramArguments[0]`) e verificar se o executável existe no disco (`target_exists`).
+     - Classificar itens com binário ausente como **Agente Órfão / Quebrado (Broken Startup Agent)** e disponibilizar endpoint `POST /api/startup-action` (com backup automático no diretório de snapshots) para remover ou desativar o agente órfão com 1 clique.
+  3. **Inspetor de Processos Pesados & Zumbis e Refresh Leve (`GET /api/live-health` & `POST /api/process-action`):**
+     - Listar os Top 10 processos consumidores de RAM e CPU (`ps -axo pid,ppid,stat,%cpu,%mem,rss,comm` no macOS / `tasklist` ou PowerShell `Get-Process` no Windows) e identificar processos zumbis (`stat` começando com `Z`).
+     - Permitir atualizar a telemetria de saúde em tempo real via `GET /api/live-health` (< 500ms, sem re-escanear o disco inteiro) e encerrar processos de usuário travados/pesados via `POST /api/process-action` (protegendo processos root/kernel do SO).
+  4. **Score de Saúde & Vida Útil (`Longevity Health Score 0–100`) e Consultor de Longevidade:**
+     - Calcular um score auditável de `0` a `100` composto por 4 pilares:
+       1. *Saúde de Armazenamento, Margem Livre NAND & Snapshots (35 pts)*
+       2. *Memória Unificada & Proteção contra Swap Thrashing no SSD (25 pts)*
+       3. *Higiene de Caches, Resíduos Órfãos & Persistência de Boot (20 pts)*
+       4. *Saúde Elétrica/Térmica (Bateria, Ciclos, Temperatura) & Atualizações (20 pts)*
+     - Gerar cartões de **Recomendações Acionáveis de Vida Útil** explicando: **(a) Diagnóstico Atual**, **(b) Impacto Físico na Vida Útil do Hardware** (ex: *Write Amplification* em células NAND flash, desgaste de TBW por swap contínuo, degradação química de Li-Ion) e **(c) Botão de Ação Direta 1-Clique** integrado aos ganchos da API local.
+
+---
+
+### RF-18: Raio-X Real das Categorias Ocultas de Armazenamento (Desvendando "Documentos" e "Dados do Sistema") & Artefatos Reconstruíveis de Projetos
+- **Descrição:** Revelar com precisão cirúrgica o que está consumindo espaço dentro das categorias opacas do sistema operacional — especificamente **"Documentos"** (onde o navegador nativo do macOS esconde diretórios iniciados com ponto `~/.*` e árvores de projetos de código) e **"Dados do Sistema / System Data"** (onde o macOS acumula mais de 100 GB sem oferecer botão de inspeção) — além de detectar artefatos pesados reconstruíveis de desenvolvimento (`node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.next`, `Pods`).
+- **Critérios de Aceite:**
+  1. **Cobertura Completa da Pasta Pessoal (`~`) no Escopo `SMART_FAST`:**
+     - Descobrir dinamicamente via `os.scandir(os.path.expanduser("~"))` **todas as pastas visíveis do usuário** (`~/Documents`, `~/Desktop`, `~/Downloads`, `~/IdeaProjects`, `~/Projects`, `~/Developer`, `~/Workspace`, `~/Movies`, `~/Music`, `~/Pictures`, `~/Public`, etc.) e **todas as pastas ocultas na raiz do usuário (`~/.*`)** (`~/.gemini`, `~/.cursor`, `~/.vscode`, `~/.ollama`, `~/.lmstudio`, `~/.docker`, `~/.orbstack`, `~/.colima`, `~/.nvm`, `~/.pyenv`, `~/.sdkman`, `~/.rustup`, `~/.cargo`, `~/.m2`, `~/.gradle`, `~/.npm`, `~/.bun`, `~/.pub-cache`, `~/.cocoapods`, `~/.android`, `~/.local`, `~/.config`, `~/.virtualenvs`, `~/.cache`, etc.).
+  2. **Painel "Raio-X de Armazenamento (`StorageXRayReport`)" na Aba 1:**
+     - **Decomposição de "Documentos & Pasta Pessoal (`~` fora de `~/Library`)":**
+       - Separar e somar:
+         - **(A) Pastas Visíveis & Projetos do Usuário** (`~/Documents`, `~/IdeaProjects`, `~/Desktop`, `~/Downloads`, etc.).
+         - **(B) Pastas Ocultas na Raiz do Usuário (`~/.*` — "Espaço Fantasma de Documentos")** que o Ajustes do Sistema do macOS contabiliza em "Documentos", mas esconde da listagem nativa.
+         - **(C) Artefatos de Build & Dependências Reconstruíveis em Projetos** (`node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.gradle`, `.next`, `dist`, `Pods`).
+     - **Decomposição de "Dados do Sistema (`System Data` — `~/Library`, `/Library`, `/private/var`, `/opt/homebrew`)":**
+       - Destrinchar o consumo em 8 subcategorias auditáveis com os maiores diretórios culpados em cada uma:
+         1. *Containers, VMs & Imagens de Disco* (`~/Library/Containers`, `~/Library/Group Containers`, `Docker.raw`, `OrbStack`, `Colima`, `UTM`).
+         2. *Application Support & Bancos de Estado* (`~/Library/Application Support/*`, `Code/User/workspaceStorage`, `Cursor`, `JetBrains`, `MobileSync/Backup`).
+         3. *Caches de Usuário & Subsistema Darwin* (`~/Library/Caches/*`, `@DARWIN_USER_CACHE_DIR@`, `@DARWIN_USER_TEMP_DIR@`).
+         4. *Toolchains, SDKs & Simuladores* (`~/Library/Developer`, `/Library/Developer/CoreSimulator`, `~/Library/Android/sdk`, `~/.android/avd`).
+         5. *Gerenciadores de Pacotes & Stores Globais* (`/opt/homebrew`, `/usr/local`, `~/Library/pnpm`, `~/.m2`, `~/.gradle`, `~/.cargo`, `~/.rustup`, `~/.nvm`, `~/.pyenv`).
+         6. *Modelos Locais de IA & Agentes* (`~/.ollama`, `~/.lmstudio`, `~/.cache/huggingface`, `~/.gemini`, `~/.cursor`).
+         7. *Memória Virtual, Swap, Logs & Diagnósticos* (`/private/var/vm`, `~/Library/Logs`, `/private/var/db/diagnostics`).
+         8. *Snapshots APFS Locais & Espaço Purgável* (`PurgeableSpace`, `com.apple.TimeMachine.*`).
+  3. **Detecção e Limpeza Assistida de Artefatos Reconstruíveis de Projetos:**
+     - Quando o scanner encontrar diretórios `node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.next`, `dist`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache` ou `Pods` com mais de `10 MB` dentro de pastas de projetos (`~/IdeaProjects`, `~/Documents`, `~/Projects`, `~/Developer`, etc.), classificá-los como **`Artefato Reconstruível de Projeto (Dev Build / Dependencies)`** e incluí-los na Aba 4 e no Raio-X com botão para mover para a Lixeira ou excluir.
+  4. **Ativação Padrão (`default_enabled: true`) e Efetividade Máxima das Regras de Limpeza Autônoma:**
+     - Habilitar por padrão (`default_enabled: true`) as regras de limpeza 100% seguras de caches de desenvolvimento (`mac_jetbrains_caches`, `mac_node_js_caches`, `mac_python_dev_caches`, `mac_jvm_native_mobile_caches`, `win_dev_caches`), caches multi-perfil de navegadores (`Profile *`, `Service Worker/CacheStorage`), `@DARWIN_USER_CACHE_DIR@/*` (protegido por whitelist) e remover diretórios de cache filhos quando expandidos via wildcard (`remove_root=True` em filhos de wildcard).
+
+---
+
+### RF-19: Explorador Interativo de Árvore de Diretórios Sob Demanda (`POST /api/inspect-directory`) com Drill-Down Infinito
+- **Descrição:** Permitir ao usuário clicar em **qualquer pasta** do Raio-X de Armazenamento, da Aba 1, da Aba 4 ou da Aba 5 para inspecionar e navegar recursivamente (nível por nível, sem limite de profundidade) por todas as suas subpastas e arquivos, identificando exatamente onde estão os gigabytes ocultos e executando ações imediatas (`📂 Abrir no Finder/Explorer`, `🗑️ Mover p/ Lixeira` ou `🔥 Excluir`).
+- **Critérios de Aceite:**
+  1. **Endpoint Local `POST /api/inspect-directory`:**
+     - Receber `{"path": "<caminho_absoluto>", "max_items": 30}` no servidor local `127.0.0.1`.
+     - Validar que o caminho existe, é um diretório e não contém path traversal (`..`) ou null bytes.
+     - Listar e medir (usando tamanho físico real `st_blocks * 512` no macOS) as subpastas e arquivos filhos imediatos daquele diretório, ordenados do maior para o menor tamanho, retornando nome, caminho, tamanho em bytes, tamanho formatado, percentual em relação à pasta pai, tipo (`Pasta` ou `Arquivo`), classificação de segurança (`classify_item_safety`) e flag `can_delete`.
+  2. **Drill-Down Expandido no Relatório Offline e Infinito no Servidor Local:**
+     - Aumentar o `sub_occupants` pré-calculado no relatório estático de `5` para `12` subpastas por item.
+     - No Dashboard Web (`127.0.0.1`), exibir botão `"🔍 Explorar Dentro desta Pasta"` em cada diretório do Raio-X e do Top 100, abrindo a árvore aninhada com breadcrumb clicável para navegar até a subpasta/arquivo exato que consome os gigabytes.
+
+---
+
+### RF-20: Reconciliação Exata de Capacidade e Ocupação de Disco no macOS APFS (Padrão SI Decimal $1000^3$ vs Binário IEC $1024^3$ & Espaço Purgável)
+- **Descrição:** Eliminar a discrepância de medição de armazenamento entre o painel da aplicação e os **Ajustes do Sistema > Geral > Armazenamento** do macOS (ex: quando o macOS exibe `217,1 GB de 245,11 GB usados` e chamadas POSIX `statvfs` formatação binária exibiam `202.65 GB / 228.27 GB`), garantindo precisão matemática e consistência em todos os módulos dependentes (`PartitionInfo`, `StorageDiskHealth`, `LongevityScoreReport`, Janela Inicial `/` e Dashboard HTML).
+- **Critérios de Aceite:**
+  1. **Formatação Nativa SI Decimal ($1000^3\text{ bytes} = 1\text{ GB}$) com Transparência Dual Binária ($1024^3\text{ bytes} = 1\text{ GiB}$):**
+     - No macOS (onde o Finder, Utilitário de Disco e Ajustes do Sistema operam em Base-10 desde o Mac OS X 10.6), `PartitionInfo` e `StorageDiskHealth` devem formatar as métricas principais de disco (`total_formatted`, `used_formatted`, `free_formatted`, `purgeable_formatted`) em **Base-10 SI (`1000^3`)** (ex: `245.11 GB` total e `217.10 GB` usado), expondo simultaneamente os equivalentes binários (`total_binary_formatted: "228.27 GiB"`, `used_binary_formatted: "202.19 GiB"`, `raw_used_binary_formatted: "202.65 GiB"`) no dicionário serializado e nos cartões da interface.
+  2. **Reconciliação do Container APFS e `PurgeableSpace` (`Espaço Purgável`):**
+     - Em `MacOSSystemProbeAdapter.get_partitions()` e `MacOSHardwareProbeAdapter.get_disks_health()`, consolidar a leitura do container APFS consultando `statvfs` (`/System/Volumes/Data` e `/`), `diskutil info -plist /System/Volumes/Data` (e `/`) e `system_profiler -json SPStorageDataType`:
+       - Extrair `total_bytes` (capacidade real do container APFS), `raw_free_bytes` (blocos físicos não alocados imediatos), `raw_used_bytes = total_bytes - raw_free_bytes` (blocos físicos brutos alocados no container) e `purgeable_bytes` (`PurgeableSpace` retido pelo APFS ou delta entre espaço disponível do `StorageKit`/`SPStorageDataType` e `raw_free_bytes`).
+       - Calcular `free_bytes` (espaço disponível efetivo no padrão Ajustes do macOS = `raw_free_bytes + purgeable_bytes` limitado a `total_bytes`) e `used_bytes = total_bytes - free_bytes` (espaço usado efetivo no padrão Ajustes do macOS).
+  3. **Consistência Transversal nos Módulos e Interface (Aba 1, Aba 8, Launcher e Longevity Score):**
+     - Exibir nos cards de partição da Aba 1 (`html_reporter.py`), da Aba 8 e da Janela Inicial (`local_server.py`) tanto os números exatos do padrão macOS (`Usado: 217.10 GB / 245.11 GB`) quanto o detalhamento técnico de engenharia (`Alocado Bruto APFS`, `Espaço Purgável APFS`, `Livre Físico Imediato` e `Equivalente Binário IEC GiB`).
+
+---
+
 ## 2. Requisitos Não-Funcionais (RNF)
 
 ### RNF-01: Política Estrita Zero-Network & Zero-Telemetry (Privacidade Absoluta)

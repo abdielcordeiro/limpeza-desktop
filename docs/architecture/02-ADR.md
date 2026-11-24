@@ -130,6 +130,94 @@ Este documento registra as decisões arquiteturais críticas do projeto **Limpez
   - Usuários recebem orientações educativas e precisas sobre a conservação física do computador, com risco zero de desgaste indevido ou degradação de SSDs/NVMes graças aos guardrails de 4 camadas e validação com o usuário.
   - Mantém adesão estrita ao **RNF-01 (Zero-Network Policy)** e **RNF-03 (Zero Dependências Pesadas)**.
 
+---
+
+## ADR-009: Engenharia Reversa Zero-Network do Ecossistema macOS (`Mole`, `Pearcleaner`, `mac-cleanup-py`, `Stats`, `OnyX`) e Motor de Varredura Adaptativa com Correlação por Bundle-ID
+- **Status:** Aceito
+- **Data:** 2026-11-20
+- **Contexto:**
+  Durante o diagnóstico de eficácia no macOS Apple Silicon (M1/M2/M3/M4), identificou-se que a varredura e limpeza inicial recuperava pouco espaço real devido a 5 limitações técnicas:
+  1. O catálogo `safe_cleanup_rules.json` possuía apenas 6 regras estáticas no macOS, deixando de limpar `~/Library/Caches/*` de forma abrangente, caches de containers sandboxed (`~/Library/Containers/*/Data/Library/Caches`), diretórios Darwin por usuário (`DARWIN_USER_CACHE_DIR` em `/private/var/folders/.../C/`) e ecossistemas pesados de desenvolvimento (Xcode DeviceSupport/Archives, JetBrains IDEs, CocoaPods, uv, Poetry, pnpm, Yarn Berry, Bun, Playwright, Go, Flutter).
+  2. O scanner `DiskScannerAdapter` possuía um limite rígido de `visited_dirs < 2500` no BFS e `_fast_dir_size(max_files=3000)`, truncando mais de 80% da árvore `~/Library` e subestimando tamanhos de pacotes grandes.
+  3. O método `get_homebrew_and_pkgutil()` dividia todos os pacotes `com.apple.pkg.*` em palavras curtas de 3 letras, gerando falsos negativos na detecção de pastas órfãs.
+  4. `LaunchAgents` órfãos (cujo binário apontado no `.plist` já havia sido desinstalado) continuavam sendo lidos pela Camada 3 como indicadores ativos, protegendo indevidamente pastas órfãs.
+  5. A leitura de bateria via `system_profiler SPPowerDataType` falhava ao converter strings com símbolo `%` (`"94%"`) em `float`.
+- **Decisão:**
+  1. **Transcrição Local Sanitizada (Zero-Network):** Incorporar as regras de limpeza profunda inspiradas no `tw93/Mole` e `mac-cleanup-py` em 15+ categorias cirúrgicas no `safe_cleanup_rules.json`, protegidas por uma Whitelist de Estado (`CloudKit`, `nsurlsessiond`, `HomeKit`, `AudioUnitCache`, `Keychain`) e resolução dinâmica segura de `getconf DARWIN_USER_CACHE_DIR` / `DARWIN_USER_TEMP_DIR`.
+  2. **Correlação Estruturada por `CFBundleIdentifier` e Auditoria de `LaunchAgents` (Inspirado no `Pearcleaner`):**
+     - Filtrar stopwords e pacotes base do sistema em `pkgutil`, correlacionando os 12 diretórios da `~/Library` por `CFBundleIdentifier`, prefixo Reverse-DNS e nome canônico.
+     - Inspecionar o binário executável (`Program` / `ProgramArguments[0]`) de cada `.plist` em `LaunchAgents`/`LaunchDaemons`: se o binário alvo não existir no disco, classificá-lo como **Agente de Inicialização Órfão** e excluí-lo da Camada 3 de proteção.
+  3. **Orçamento Adaptativo BFS e Blocos Físicos APFS (`st_blocks * 512`):**
+     - Expandir o orçamento do scanner para até `25.000` diretórios e `25.000` arquivos por bundle fechado, priorizando `st_blocks * 512` no macOS para refletir a ocupação física real no container APFS.
+  4. **Telemetria IOKit Direta (`ioreg -rn AppleSmartBattery -a`):**
+     - Coletar métricas de bateria via `ioreg` com `plistlib.loads` (< 15ms, 100% imune a formatação textual), `diskutil info -plist /` para `Purgeable Space` e `vm_stat` com `hw.pagesize` (`16384` bytes no Apple Silicon).
+- **Consequências:**
+  - Aumento expressivo na descoberta e recuperação segura de gigabytes no macOS Apple Silicon (Containers, Dev Caches, Darwin Caches e Órfãos), mantendo zero falsos positivos e 100% de conformidade com a política Zero-Network.
+
+---
+
+## ADR-010: Arquitetura de Ganchos Interativos Web (`127.0.0.1`), Quarentena Padrão via Lixeira e Motor Consultivo de Vida Útil (`Longevity Health Score`)
+- **Status:** Aceito
+- **Data:** 2026-11-20
+- **Contexto:**
+  O usuário precisava que a aplicação Web local (`127.0.0.1`) deixasse de ser apenas um relatório passivo nas Abas 2, 5, 7 e 8 e passasse a oferecer ganchos interativos completos para: (a) apagar ou mover para a Lixeira arquivos/pastas gigantes e subpastas diretamente da UI, (b) abrir a localização no Finder/Explorer, (c) executar regras individuais de limpeza após um Dry-Run, (d) remover `LaunchAgents` órfãos e encerrar processos pesados/zumbis, e (e) receber recomendações acionáveis sobre a saúde e vida útil da máquina.
+- **Decisão:**
+  1. **Novos Endpoints REST Estritamente Locais (`127.0.0.1`):**
+     - `POST /api/file-action`: Executa `trash` (move para `~/.Trash` / Recycle Bin como padrão seguro) ou `delete` (remoção permanente resiliente) para caminhos aprovados pelo guardrail `is_safe_path_to_clean()`, recalculando métricas e atualizando o DOM sem reload.
+     - `POST /api/reveal-path`: Abre o item no Finder (`open -R`) ou Windows Explorer (`explorer.exe /select,`).
+     - `POST /api/execute-rule`: Executa sob demanda uma única regra de limpeza autônoma da Aba 2.
+     - `GET /api/live-health`: Atualiza instantaneamente telemetria de RAM/Swap, Bateria, Processos, Startup Items e `Longevity Health Score` sem re-escanear o disco.
+     - `POST /api/startup-action`: Remove ou desativa `LaunchAgents` / itens de inicialização órfãos salvando backup prévio em `outputs/snapshots/`.
+     - `POST /api/process-action`: Encerra com segurança (`SIGTERM`) processos de usuário selecionados no inspetor, bloqueando processos críticos do SO (`PID <= 1`, `kernel_task`, `launchd`, `WindowServer`, `System`, `svchost`, `csrss`, `lsass`).
+     - `POST /api/upgrade-packages`: Executa `brew upgrade` / `brew cleanup` ou `winget upgrade` sob ação explícita do usuário na Aba 7.
+  2. **Motor Consultivo `Longevity Health Score (0–100)`:**
+     - Computar score determinístico em 4 pilares (Armazenamento/NAND 35%, Memória/Swap 25%, Higiene/Boot 20%, Bateria/Térmica 20%) acompanhado de cartões `LongevityRecommendation` com botão de ação 1-clique integrado aos endpoints acima.
+- **Consequências:**
+  - Experiência de painel de controle desktop completo, reativo e seguro, com quarentena nativa via Lixeira e proteção estrita contra exclusão de arquivos do sistema operacional.
+
+---
+
+## ADR-011: Raio-X das Categorias Ocultas de Armazenamento ("Documentos" & "Dados do Sistema"), Varredura Completa da Home (`~`), Artefatos Reconstruíveis de Projetos e Navegação em Árvore Sob Demanda (`/api/inspect-directory`)
+- **Status:** Aceito
+- **Data:** 2026-11-22
+- **Contexto:**
+  Durante os testes em produção no macOS Apple Silicon (`219,68 GB / 245,11 GB usados`), identificou-se que os Ajustes do Sistema do macOS exibiam **`18,67 GB` em Documentos** e **`148,52 GB` em Dados do Sistema**, mas o navegador nativo da Apple não revelava o que ocupava os `18,67 GB` de Documentos (pois oculta todos os `dot-folders` `~/.*` e não agrega árvores de código) nem oferecia inspeção de `Dados do Sistema`. Na nossa aplicação, 5 fatores impediam a visibilidade e a evolução real na remoção:
+  1. O escopo padrão `SMART_FAST` no `OrchestratorService._resolve_scan_targets()` olhava apenas `~/Library/...`, `~/Downloads` e 5 dotfiles específicos, deixando de fora `~/Documents`, `~/Desktop`, `~/IdeaProjects` (e demais pastas do usuário em `~`) bem como todas as demais pastas ocultas `~/.*` (`~/.gemini`, `~/.cursor`, `~/.vscode`, `~/.ollama`, `~/.lmstudio`, `~/.docker`, `~/.nvm`, `~/.pyenv`, `~/.sdkman`, `~/.rustup`, `~/.m2`, `~/.pub-cache`, `~/.cocoapods`, `~/.android`, `~/.local`, `~/.config`).
+  2. O catálogo `safe_cleanup_rules.json` mantinha `default_enabled: false` nas regras de maior peso para desenvolvedores (`mac_jetbrains_caches`, `mac_node_js_caches`, `mac_python_dev_caches`, `mac_jvm_native_mobile_caches`, `win_dev_caches`), além de limpar apenas 4 subpastas fixas em `@DARWIN_USER_CACHE_DIR@` e apenas o perfil `Default` de navegadores Chromium.
+  3. Em `AutonomousCleanerAdapter.execute_rule()`, alvos resolvidos via wildcard (`/*`) eram limpos com `remove_root=False`, mantendo milhares de subpastas de cache vazias.
+  4. Em `DiskScannerAdapter.scan_and_evaluate()`, pastas de dependências e build (`node_modules`, `.venv`, `venv`, `target`, `build`, `.dart_tool`, `.next`, `Pods`) eram medidas mas não registradas em `clean_candidates`.
+  5. A deduplicação hierárquica em `top_occupants` ocultava subpastas sob a pasta pai e limitava `sub_occupants` a 1 nível de 5 itens, impedindo navegação profunda.
+- **Decisão:**
+  1. **Descoberta Dinâmica Completa da Home (`~`) em `SMART_FAST`:** Escanear dinamicamente todas as subpastas de primeiro nível de `~` (visíveis e ocultas `~/.*`) junto com os diretórios de `~/Library`, `/Library/Developer` e `/opt/homebrew`.
+  2. **Motor de Raio-X de Armazenamento (`StorageXRayReport` & `StorageCategoryBreakdown`):** Decompor explicitamente no relatório e na Aba 1:
+     - **Raio-X de "Documentos & Pasta Pessoal (`~`)":** Pastas Visíveis & Projetos (`~/Documents`, `~/IdeaProjects`, `~/Desktop`, `~/Downloads`), Pastas Ocultas `~/.*` ("Espaço Fantasma") e Artefatos Reconstruíveis de Projetos (`node_modules`, `.venv`, `target`, `build`, `.dart_tool`, etc.).
+     - **Raio-X de "Dados do Sistema (`System Data`)":** Containers/VMs (`Docker.raw`, `OrbStack`, `Colima`), `Application Support`, `Caches` & Darwin `/private/var/folders`, `Developer` & Simuladores (`CoreSimulator/Devices`, `Android SDK/AVD`), Package Managers (`/opt/homebrew`, `pnpm`, `m2`, `gradle`, `cargo`), Modelos Locais de IA (`ollama`, `lmstudio`, `huggingface`, `.gemini`, `.cursor`), Memória Virtual/Swap/Logs (`/private/var/vm`) e Snapshots APFS/Purgeable.
+  3. **Habilitação Padrão (`default_enabled: true`) & Limpeza Profunda Real:** Ativar por padrão todas as regras seguras de caches de desenvolvimento, usar `remove_root=True` para subpastas resolvidas por wildcard (`/*`) e expandir wildcards multi-perfil (`Profile *`) e `@DARWIN_USER_CACHE_DIR@/*`.
+  4. **Explorador de Árvore Sob Demanda (`POST /api/inspect-directory`):** Permitir drill-down recursivo infinito em qualquer diretório diretamente pelo Dashboard Web (`127.0.0.1`), listando subpastas e arquivos ordenados por tamanho físico real (`st_blocks * 512`) com ações diretas (`📂 Abrir`, `🗑️ Lixeira`, `🔥 Excluir`).
+- **Consequências:**
+  - Transparência total sobre os gigabytes ocultos em "Documentos" e "Dados do Sistema" e salto real na recuperação de espaço em máquinas de usuários e desenvolvedores.
+
+---
+
+## ADR-012: Reconciliação de Armazenamento APFS no macOS (Unidades SI Base-10 $1000^3$ vs IEC Base-2 $1024^3$ e Desconto de `PurgeableSpace`)
+- **Status:** Aceito
+- **Data:** 2026-11-23
+- **Contexto:**
+  Durante a validação lado a lado com os **Ajustes do Sistema > Geral > Armazenamento** do macOS em um volume APFS de 256 GB (`245.107.195.904` bytes), constatou-se uma divergência visual e numérica importante: enquanto o macOS informava **`217,1 GB de 245,11 GB usados`**, o card principal da nossa aplicação exibia **`Usado: 202.65 GB (88.8%) | Livre: 25.62 GB / 228.27 GB`**.
+  A investigação técnica identificou duas causas combinadas:
+  1. **Base-2 (IEC `GiB`, $1024^3$) rotulada como `GB` vs Base-10 (SI `GB`, $1000^3$):** Desde o Mac OS X 10.6, todo o ecossistema macOS (`Finder`, `Ajustes do Sistema`, `diskutil`, `system_profiler`) calcula armazenamento em potências de $1000$ ($245.107.195.904 / 1000^3 = 245,11\text{ GB}$ e $217.593.780.633 / 1000^3 = 217,59\text{ GB}$), enquanto `format_bytes()` dividia por $1024^3$ ($228,27\text{ GiB}$ e $202,65\text{ GiB}$), gerando uma defasagem de `7,37%` (~15 GB).
+  2. **Alocação Bruta `statvfs` vs Espaço Purgável APFS (`PurgeableSpace`):** A chamada `shutil.disk_usage("/System/Volumes/Data")` retorna apenas blocos físicos livres imediatos (`raw_free = 27,51 GB`), sem contabilizar o `PurgeableSpace` (`~490 MB` a vários GBs em caches/snapshots APFS que o kernel Darwin libera sob demanda). O painel de Armazenamento do macOS (`StorageKit` / `SPStorageDataType`) soma o `PurgeableSpace` ao espaço disponível (`27,51 GB + 0,49 GB = 28,00 GB` disponíveis), resultando em `245,11 GB - 28,00 GB = 217,11 GB` (`217,1 GB`) usados. Além disso, `MacOSSystemProbeAdapter.get_partitions()` e `MacOSHardwareProbeAdapter.get_disks_health()` consultavam fontes distintas sem reconciliação.
+- **Decisão:**
+  1. **Funções de Formatação Explícitas (`format_bytes_si` em Base-10 $1000^3$ e `format_bytes_binary` em Base-2 $1024^3$):** Manter `format_bytes()` compatível e introduzir formatação SI Decimal (`1000^3`) para volumes e métricas de disco APFS/Storage (`use_si_units=True` no macOS), além de expor os campos binários explícitos (`GiB`) como metadado técnico complementar.
+  2. **Sonda Unificada de Container APFS (`_probe_apfs_volume_metrics`):** Reconciliar `shutil.disk_usage`, `diskutil info -plist /System/Volumes/Data` (e `/`) e `system_profiler -json SPStorageDataType` tanto em `MacOSSystemProbeAdapter.get_partitions()` quanto em `MacOSHardwareProbeAdapter.get_disks_health()`, preenchendo em `PartitionInfo` e `StorageDiskHealth`:
+     - `total_bytes`, `used_bytes` (efetivo padrão macOS Settings), `free_bytes` (disponível efetivo com purgável)
+     - `raw_used_bytes` (alocado físico bruto APFS), `raw_free_bytes` (livre físico imediato `statvfs`), `purgeable_bytes` (`Espaço Purgável APFS`)
+  3. **Transparência Visual Dual na UI (Aba 1, Aba 8 e Janela Inicial `/`):** Exibir o valor principal idêntico aos Ajustes do Sistema do macOS (`217.10 GB / 245.11 GB`) acompanhado de uma barra de metadados técnicos exibindo o `Alocado Bruto APFS`, o `Espaço Purgável` e o `Equivalente Binário IEC (GiB)`.
+- **Consequências:**
+  - Alinhamento 1:1 com os números reportados pelos Ajustes do Sistema do macOS, evitando confusão do usuário e garantindo precisão nos cálculos de saúde NAND e alertas de capacidade em toda a aplicação.
+
+
+
 
 
 

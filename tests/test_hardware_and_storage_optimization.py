@@ -25,6 +25,7 @@ from src.infrastructure.windows.platform_adapter import (
 from src.infrastructure.macos.platform_adapter import (
     MacOSHardwareProbeAdapter,
     MacOSStorageOptimizationAdapter,
+    MacOSCloudAndPackagesAdapter,
 )
 from src.application.orchestrator import OrchestratorService
 from src.presentation.reporters.html_reporter import generate_html_report
@@ -320,6 +321,58 @@ class TestMacOSStorageAndHardwareAdapters(unittest.TestCase):
         self.assertTrue(hw.memory.total_bytes > 0)
         self.assertTrue(len(hw.gpus) >= 1)
         self.assertIsNotNone(hw.battery)
+        # Validações estendidas das Fases 1 a 3
+        self.assertGreaterEqual(hw.disks[0].purgeable_bytes, 0)
+        self.assertGreaterEqual(hw.disks[0].apfs_snapshots_count, 0)
+        self.assertIn(hw.memory.page_size_bytes, (4096, 16384))
+        self.assertGreaterEqual(hw.memory.wired_bytes, 0)
+        self.assertGreaterEqual(hw.memory.compressed_bytes, 0)
+        self.assertIsInstance(hw.startup_items, list)
+        self.assertIsInstance(hw.top_processes, list)
+
+    def test_macos_startup_items_and_processes_probe(self):
+        items = self.hw_adapter.get_startup_items()
+        self.assertIsInstance(items, list)
+        if items:
+            first = items[0]
+            self.assertIsInstance(first.name, str)
+            self.assertIsInstance(first.is_orphan, bool)
+            self.assertIn(first.scope, ("User LaunchAgent", "System LaunchAgent", "System LaunchDaemon"))
+
+        procs = self.hw_adapter.get_top_processes(limit=5)
+        self.assertIsInstance(procs, list)
+        if procs:
+            p = procs[0]
+            self.assertGreater(p.pid, 0)
+            self.assertIsInstance(p.name, str)
+            self.assertIsInstance(p.cpu_percent, float)
+
+    def test_macos_guardrail_process_termination(self):
+        # Tentativa de encerrar PID de sistema protegido (<= 100) deve falhar por segurança
+        self.assertFalse(self.hw_adapter.terminate_process(1))
+        self.assertFalse(self.hw_adapter.terminate_process(0))
+        self.assertFalse(self.hw_adapter.terminate_process(-5))
+
+    def test_macos_startup_item_removal_safety(self):
+        # Tentativa de remover caminho inexistente ou fora de LaunchAgents/LaunchDaemons deve falhar
+        self.assertFalse(self.hw_adapter.remove_startup_item("/etc/passwd"))
+        self.assertFalse(self.hw_adapter.remove_startup_item("/nonexistent/file.plist"))
+
+    def test_macos_cloud_and_packages_adapter_methods(self):
+        cloud_adapter = MacOSCloudAndPackagesAdapter()
+        # ID malicioso com injeção de comando deve ser rejeitado imediatamente
+        res_bad = cloud_adapter.upgrade_package("brew; rm -rf /")
+        self.assertEqual(res_bad["status"], "error")
+        self.assertIn("caracteres inválidos", res_bad["message"])
+
+        # Execução simulada com mock
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="Success", stderr="")
+            res_ok = cloud_adapter.upgrade_package("git")
+            self.assertEqual(res_ok["status"], "ok")
+
+            res_clean = cloud_adapter.cleanup_package_manager()
+            self.assertEqual(res_clean["status"], "ok")
 
     def test_macos_target_sanitization_neutralizes_flags_and_injection(self):
         self.assertEqual(self.opt_adapter._sanitize_target("--help"), "/")

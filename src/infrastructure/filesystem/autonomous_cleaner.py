@@ -3,20 +3,100 @@
 import os
 import sys
 import stat
+import glob
+import time
 import json
 import shutil
 import subprocess
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Any
 from src.domain.entities import AutonomousCleanupRule, AutonomousCleanupEntry
 from src.domain.ports import IFileSystemCleanerPort
 from src.domain.value_objects import ExecutionMode, OSPlatform, format_bytes
 from src.infrastructure.resources import get_catalog_path
 
 
+_DARWIN_CONF_CACHE: Dict[str, str] = {}
+
+
+def get_darwin_user_dir(conf_var: str) -> str:
+    """
+    Resolve dinamicamente diretórios de sessão Darwin por usuário via getconf
+    (DARWIN_USER_CACHE_DIR ou DARWIN_USER_TEMP_DIR).
+    """
+    if conf_var in _DARWIN_CONF_CACHE:
+        return _DARWIN_CONF_CACHE[conf_var]
+
+    resolved = ""
+    if sys.platform == "darwin":
+        try:
+            res = subprocess.run(
+                ["getconf", conf_var],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                check=False,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                cand = os.path.normpath(res.stdout.strip())
+                real_cand = os.path.realpath(cand).replace("\\", "/")
+                if real_cand.startswith("/private/var/folders/") or real_cand.startswith("/var/folders/"):
+                    resolved = cand
+        except Exception:
+            pass
+
+    if not resolved and conf_var == "DARWIN_USER_TEMP_DIR":
+        tmpdir = os.environ.get("TMPDIR", "")
+        if tmpdir:
+            real_tmp = os.path.realpath(tmpdir).replace("\\", "/")
+            if real_tmp.startswith("/private/var/folders/") or real_tmp.startswith("/var/folders/"):
+                resolved = os.path.normpath(tmpdir)
+
+    if not resolved:
+        resolved = f"/nonexistent_{conf_var.lower()}"
+
+    _DARWIN_CONF_CACHE[conf_var] = resolved
+    return resolved
+
+
 def expand_os_path(raw_path: str) -> str:
-    """Expande variáveis de ambiente Windows (%VAR%) e diretórios de usuário (~)."""
-    expanded = os.path.expanduser(os.path.expandvars(raw_path))
+    """Expande tokens Darwin (@DARWIN_USER_*@), variáveis Windows (%VAR%) e home (~)."""
+    path_str = raw_path
+    if "@DARWIN_USER_CACHE_DIR@" in path_str:
+        path_str = path_str.replace("@DARWIN_USER_CACHE_DIR@", get_darwin_user_dir("DARWIN_USER_CACHE_DIR"))
+    if "@DARWIN_USER_TEMP_DIR@" in path_str:
+        path_str = path_str.replace("@DARWIN_USER_TEMP_DIR@", get_darwin_user_dir("DARWIN_USER_TEMP_DIR"))
+    expanded = os.path.expanduser(os.path.expandvars(path_str))
     return os.path.normpath(expanded)
+
+
+# Whitelist cirúrgica de proteção de estado em ~/Library/Caches no macOS (ADR-009)
+PROTECTED_MACOS_CACHE_PATTERNS = (
+    "cloudkit",
+    "com.apple.nsurlsessiond",
+    "com.apple.bird",
+    "com.apple.cloudd",
+    "com.apple.homekit",
+    "com.apple.safari.safebrowsing",
+    "audiounitcache",
+    "com.apple.passkit",
+    "com.apple.geoservices",
+    "com.apple.launchservices",
+    "com.apple.keychain",
+    "com.apple.ap.adprivacyd",
+    "familycircle",
+    "com.apple.accountsd",
+)
+
+
+def is_protected_macos_cache_path(target_path: str) -> bool:
+    """Verifica se o caminho em ~/Library/Caches pertence à whitelist de estado crítico do macOS."""
+    if not target_path:
+        return True
+    norm = target_path.replace("\\", "/").rstrip("/").lower()
+    base = os.path.basename(norm)
+    if any(pat == base or pat in base for pat in PROTECTED_MACOS_CACHE_PATTERNS):
+        return True
+    return False
 
 
 # Caminhos críticos de sistema que jamais podem ser apagados diretamente na raiz
@@ -25,13 +105,16 @@ CRITICAL_PROTECTED_POSIX_ROOTS = {
     "/system",
     "/library",
     "/applications",
+    "/applications/utilities",
     "/users",
     "/bin",
     "/sbin",
     "/usr",
     "/var",
+    "/var/folders",
     "/private",
     "/private/var",
+    "/private/var/folders",
     "/private/etc",
     "/etc",
     "/dev",
@@ -39,6 +122,8 @@ CRITICAL_PROTECTED_POSIX_ROOTS = {
     "/volumes",
     "/opt",
     "/cores",
+    "/system/volumes",
+    "/system/volumes/data",
 }
 
 CRITICAL_PROTECTED_POSIX_PREFIXES = (
@@ -50,29 +135,69 @@ CRITICAL_PROTECTED_POSIX_PREFIXES = (
     "/private/etc/",
     "/dev/",
     "/proc/",
-    "/library/apple/",
-    "/library/extensions/",
+    "/library/",
+    "/applications/utilities/",
+    "/opt/",
 )
 
-CRITICAL_PROTECTED_WINDOWS_ROOTS = {
-    "c:",
-    "c:\\",
-    "c:\\windows",
-    "c:\\windows\\system32",
-    "c:\\windows\\syswow64",
-    "c:\\windows\\winsxs",
-    "c:\\windows\\boot",
-    "c:\\program files",
-    "c:\\program files (x86)",
-    "c:\\users",
-    "c:\\programdata",
-}
 
-ALLOWED_WINDOWS_DIR_SUBTREES = (
-    "c:\\windows\\temp",
-    "c:\\windows\\prefetch",
-    "c:\\windows\\softwaredistribution\\download",
-)
+def _is_unsafe_windows_subpath(raw_win: str) -> bool:
+    """Verifica regras estritas de segurança em caminhos Windows para qualquer letra de unidade."""
+    norm = raw_win.replace("/", "\\").rstrip("\\").lower()
+    if not norm:
+        return True
+
+    # 1. Verifica letra de drive (ex: "c:", "c:\", "d:")
+    if len(norm) >= 2 and norm[0].isalpha() and norm[1] == ":":
+        rest = norm[2:]
+        if not rest or rest == "\\":
+            return True  # Raiz inteira de disco ("C:", "C:\", "D:", etc.)
+    elif norm.startswith("\\\\"):
+        # UNC path não permitido para deleção direta
+        return True
+    else:
+        rest = norm
+
+    parts = [p for p in rest.split("\\") if p]
+    if not parts:
+        return True
+
+    first = parts[0]
+    # Protege subárvores de sistema
+    if first in ("windows", "winnt"):
+        # Apenas permite subárvores temporárias seguras
+        if len(parts) >= 2 and parts[1] in ("temp", "prefetch"):
+            return False
+        if len(parts) >= 3 and parts[1] == "softwaredistribution" and parts[2] == "download":
+            return False
+        return True
+
+    if first in (
+        "program files",
+        "program files (x86)",
+        "system volume information",
+        "recovery",
+        "boot",
+        "$recycle.bin",
+        "recycle.bin",
+        "perflogs",
+    ):
+        return True
+
+    if first == "users":
+        if len(parts) <= 2:
+            return True  # C:\Users ou C:\Users\Username
+        if len(parts) == 3 and parts[2] in (
+            "desktop", "documents", "downloads", "pictures", "music", "videos", "appdata"
+        ):
+            return True
+        if len(parts) == 4 and parts[2] == "appdata" and parts[3] in ("local", "roaming", "locallow"):
+            return True
+
+    if first == "programdata" and len(parts) <= 1:
+        return True  # C:\ProgramData raiz
+
+    return False
 
 
 def is_safe_path_to_clean(target_path: str) -> bool:
@@ -92,18 +217,9 @@ def is_safe_path_to_clean(target_path: str) -> bool:
     if ".." in raw_parts:
         return False
 
-    # 1. Validação independente de plataforma para caminhos Windows (ex: C:\, C:\Windows\System32)
-    raw_win = raw.replace("/", "\\").rstrip("\\").lower()
-    if len(raw_win) == 2 and raw_win[0].isalpha() and raw_win[1] == ":":
+    # 1. Validação independente de plataforma para caminhos Windows (qualquer letra de unidade)
+    if _is_unsafe_windows_subpath(raw):
         return False
-    if raw_win in CRITICAL_PROTECTED_WINDOWS_ROOTS:
-        return False
-    if raw_win.startswith("c:\\windows\\"):
-        if not any(
-            raw_win == allowed or raw_win.startswith(allowed + "\\")
-            for allowed in ALLOWED_WINDOWS_DIR_SUBTREES
-        ):
-            return False
 
     # 2. Validação do caminho expandido e resolvido no SO hospedeiro
     expanded = os.path.expanduser(os.path.expandvars(raw))
@@ -121,23 +237,21 @@ def is_safe_path_to_clean(target_path: str) -> bool:
         if any(posix_norm.startswith(pref) for pref in CRITICAL_PROTECTED_POSIX_PREFIXES):
             return False
 
-        win_norm = candidate.replace("/", "\\").rstrip("\\").lower()
-        if len(win_norm) == 2 and win_norm[0].isalpha() and win_norm[1] == ":":
+        if _is_unsafe_windows_subpath(candidate):
             return False
-        if win_norm in CRITICAL_PROTECTED_WINDOWS_ROOTS:
-            return False
-        if win_norm.startswith("c:\\windows\\"):
-            if not any(
-                win_norm == allowed or win_norm.startswith(allowed + "\\")
-                for allowed in ALLOWED_WINDOWS_DIR_SUBTREES
-            ):
-                return False
 
     # 3. Protege o diretório home do usuário e pastas-raiz estruturais do perfil
     user_home = os.path.abspath(os.path.expanduser("~")).replace("\\", "/").rstrip("/").lower()
     protected_user_roots = {
         user_home,
         f"{user_home}/library",
+        f"{user_home}/library/caches",
+        f"{user_home}/library/containers",
+        f"{user_home}/library/group containers",
+        f"{user_home}/library/application support",
+        f"{user_home}/library/preferences",
+        f"{user_home}/library/saved application state",
+        f"{user_home}/library/launchagents",
         f"{user_home}/applications",
         f"{user_home}/desktop",
         f"{user_home}/documents",
@@ -725,6 +839,30 @@ class AutonomousCleanerAdapter(IFileSystemCleanerPort):
         else:
             return self._execute_windows_trash(rule, mode)
 
+    def _expand_rule_targets(self, raw_target: str) -> List[str]:
+        """Expande wildcards (*) e tokens Darwin aplicando a whitelist de proteção de estado."""
+        if not isinstance(raw_target, str) or not raw_target.strip():
+            return []
+        raw_parts = [p for p in raw_target.replace("\\", "/").split("/") if p]
+        if ".." in raw_parts or "\x00" in raw_target:
+            return []
+        expanded = expand_os_path(raw_target)
+        if "*" in expanded or "?" in expanded:
+            try:
+                matches = glob.glob(expanded)
+            except Exception:
+                matches = []
+            safe_matches: List[str] = []
+            for m in sorted(matches):
+                if is_protected_macos_cache_path(m):
+                    continue
+                if is_safe_path_to_clean(m):
+                    safe_matches.append(m)
+            return safe_matches
+        if is_protected_macos_cache_path(expanded):
+            return []
+        return [expanded]
+
     def execute_rule(
         self,
         rule: AutonomousCleanupRule,
@@ -741,15 +879,21 @@ class AutonomousCleanerAdapter(IFileSystemCleanerPort):
         for raw_target in rule.target_paths:
             if not isinstance(raw_target, str):
                 continue
-            expanded = expand_os_path(raw_target)
-            resolved_paths.append(expanded)
-            if is_safe_path_to_clean(raw_target) and is_safe_path_to_clean(expanded) and os.path.exists(expanded):
-                b_freed, f_rem, errs = self._clean_directory_contents(
-                    expanded, mode=mode, remove_root=False
-                )
-                total_bytes += b_freed
-                total_files += f_rem
-                total_errors += errs
+            has_wildcard = "*" in raw_target or "?" in raw_target
+            candidates = self._expand_rule_targets(raw_target)
+            if not candidates:
+                resolved_paths.append(expand_os_path(raw_target))
+                continue
+            for expanded in candidates:
+                if len(resolved_paths) < 25:
+                    resolved_paths.append(expanded)
+                if (has_wildcard or is_safe_path_to_clean(raw_target)) and is_safe_path_to_clean(expanded) and os.path.exists(expanded):
+                    b_freed, f_rem, errs = self._clean_directory_contents(
+                        expanded, mode=mode, remove_root=has_wildcard
+                    )
+                    total_bytes += b_freed
+                    total_files += f_rem
+                    total_errors += errs
 
         status = "cleaned" if mode == ExecutionMode.REAL else "simulated"
         if total_files == 0 and total_bytes == 0:
@@ -820,3 +964,94 @@ class AutonomousCleanerAdapter(IFileSystemCleanerPort):
             details=details,
             errors_skipped=total_errors,
         )
+
+    def _measure_path_size_and_count(self, target_path: str) -> Tuple[int, int]:
+        """Mede o total de bytes e quantidade de arquivos de um item antes de mover para a Lixeira."""
+        if not os.path.exists(target_path):
+            return 0, 0
+        if os.path.islink(target_path) or os.path.isfile(target_path):
+            try:
+                sz = 0 if os.path.islink(target_path) else os.path.getsize(target_path)
+                return sz, 1
+            except OSError:
+                return 0, 1
+        total_b = 0
+        total_f = 0
+        for root, _, files in os.walk(target_path):
+            for fname in files:
+                fp = os.path.join(root, fname)
+                total_f += 1
+                try:
+                    if not os.path.islink(fp):
+                        total_b += os.path.getsize(fp)
+                except OSError:
+                    pass
+        return total_b, max(1, total_f)
+
+    def move_paths_to_trash(
+        self,
+        paths: List[str],
+        mode: ExecutionMode = ExecutionMode.REAL,
+        custom_trash_dir: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Move arquivos ou diretórios com segurança para a Lixeira do usuário (~/.Trash no macOS
+        ou Recycle Bin no Windows), garantindo reversibilidade e resolução de conflito de nomes.
+        """
+        total_bytes = 0
+        total_files = 0
+        total_errors = 0
+        affected_paths: List[str] = []
+        trash_destinations: List[str] = []
+
+        trash_base = custom_trash_dir or os.path.expanduser("~/.Trash")
+
+        for p in paths:
+            if not isinstance(p, str) or not is_safe_path_to_clean(p):
+                total_errors += 1
+                continue
+            expanded = expand_os_path(p)
+            if not os.path.exists(expanded) or not is_safe_path_to_clean(expanded) or is_protected_macos_cache_path(expanded):
+                total_errors += 1
+                continue
+
+            b_size, f_count = self._measure_path_size_and_count(expanded)
+            if mode == ExecutionMode.DRY_RUN:
+                affected_paths.append(expanded)
+                total_bytes += b_size
+                total_files += f_count
+                continue
+
+            # Modo REAL: move para a Lixeira
+            try:
+                os.makedirs(trash_base, exist_ok=True)
+                base_name = os.path.basename(expanded.rstrip("\\/"))
+                dest_path = os.path.join(trash_base, base_name)
+                if os.path.exists(dest_path):
+                    stem, ext = os.path.splitext(base_name)
+                    dest_path = os.path.join(trash_base, f"{stem}_{int(time.time() * 1000)}{ext}")
+
+                shutil.move(expanded, dest_path)
+                affected_paths.append(expanded)
+                trash_destinations.append(dest_path)
+                total_bytes += b_size
+                total_files += f_count
+            except (PermissionError, OSError):
+                total_errors += 1
+
+        status = "trashed" if mode == ExecutionMode.REAL else "simulated"
+        action_verb = "Movidos para a Lixeira" if mode == ExecutionMode.REAL else "Simulados para a Lixeira"
+        details = f"{action_verb}: {len(affected_paths)} item(ns) ({total_files} arquivos, {format_bytes(total_bytes)})."
+
+        return {
+            "status": status,
+            "action": "trash",
+            "success": len(affected_paths) > 0 or total_errors == 0,
+            "bytes_freed": total_bytes,
+            "bytes_freed_formatted": format_bytes(total_bytes),
+            "files_removed": total_files,
+            "affected_paths": affected_paths,
+            "trash_destinations": trash_destinations,
+            "errors_skipped": total_errors,
+            "message": details,
+        }

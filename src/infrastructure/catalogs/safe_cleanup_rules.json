@@ -1,5 +1,5 @@
 {
-  "catalog_version": "2.0.0",
+  "catalog_version": "3.0.0",
   "zero_network_verified": true,
   "rules": [
     {
@@ -90,7 +90,7 @@
         "%USERPROFILE%\\.gradle\\caches",
         "%USERPROFILE%\\.nuget\\packages"
       ],
-      "default_enabled": false,
+      "default_enabled": true,
       "risk_level": "safe"
     },
     {
@@ -107,12 +107,55 @@
     },
     {
       "id": "mac_system_temp",
-      "name": "Temporários e Logs de Usuário (~/Library/Logs & /tmp)",
+      "name": "Temporários e Logs de Usuário (~/Library/Logs & Darwin Temp)",
       "category": "system_temp",
       "os_platform": "macos",
-      "description": "Arquivos de log antigos em ~/Library/Logs e arquivos transitórios do usuário.",
+      "description": "Arquivos de log antigos em ~/Library/Logs e arquivos transitórios da sessão do usuário (@DARWIN_USER_TEMP_DIR@).",
       "target_paths": [
-        "~/Library/Logs"
+        "~/Library/Logs",
+        "@DARWIN_USER_TEMP_DIR@"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_user_caches_general",
+      "name": "Caches Gerais de Aplicativos do Usuário (~/Library/Caches/* com Whitelist)",
+      "category": "user_caches",
+      "os_platform": "macos",
+      "description": "Limpa caches de aplicativos de terceiros em ~/Library/Caches/* preservando estados vitais (CloudKit, Keychain, AudioUnits, HomeKit).",
+      "target_paths": [
+        "~/Library/Caches/*"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_sandbox_containers_cache",
+      "name": "Caches e Logs de Containers Sandboxed (App Store & Apps Modernos)",
+      "category": "containers_cache",
+      "os_platform": "macos",
+      "description": "Limpa caches e logs acumulados dentro de ~/Library/Containers/*/Data/Library/Caches e Group Containers (WhatsApp, Telegram, Slack, Xcode, Final Cut).",
+      "target_paths": [
+        "~/Library/Containers/*/Data/Library/Caches/*",
+        "~/Library/Containers/*/Data/Library/Logs/*",
+        "~/Library/Group Containers/*/Library/Caches/*"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_darwin_user_caches",
+      "name": "Caches de Subsistema Darwin por Usuário (QuickLook, Metal Shaders, Clang)",
+      "category": "darwin_caches",
+      "os_platform": "macos",
+      "description": "Limpa caches reconstruíveis em /private/var/folders/.../C (@DARWIN_USER_CACHE_DIR@: Metal Shaders, QuickLook Thumbnails, LLVM Clang).",
+      "target_paths": [
+        "@DARWIN_USER_CACHE_DIR@/*",
+        "@DARWIN_USER_CACHE_DIR@/com.apple.metal",
+        "@DARWIN_USER_CACHE_DIR@/com.apple.QuickLook.thumbnailcache",
+        "@DARWIN_USER_CACHE_DIR@/org.llvm.clang",
+        "@DARWIN_USER_CACHE_DIR@/com.apple.iconservices"
       ],
       "default_enabled": true,
       "risk_level": "safe"
@@ -125,6 +168,8 @@
       "description": "Caches de renderização gráfica e compiladores de shaders em ~/Library/Caches.",
       "target_paths": [
         "~/Library/Caches/com.apple.WebKit.GPU",
+        "~/Library/Caches/com.apple.WebKit.Networking",
+        "~/Library/Caches/com.apple.WebKit.WebContent",
         "~/Library/Caches/com.apple.tiswitcher.cache"
       ],
       "default_enabled": true,
@@ -135,7 +180,7 @@
       "name": "Relatórios de Falha e DiagnosticReports (macOS CrashReporter)",
       "category": "crash_dumps",
       "os_platform": "macos",
-      "description": "Relatórios de falhas (.ips / .crash) em ~/Library/Logs/DiagnosticReports e CrashReporter.",
+      "description": "Relatórios de falhas (.ips / .crash / .spin) em ~/Library/Logs/DiagnosticReports e CrashReporter.",
       "target_paths": [
         "~/Library/Logs/DiagnosticReports",
         "~/Library/Application Support/CrashReporter"
@@ -145,31 +190,176 @@
     },
     {
       "id": "mac_browser_electron_cache",
-      "name": "Caches Transitórios de Navegadores e Apps Electron (macOS)",
+      "name": "Caches Transitórios de Navegadores e Apps Electron (Safari, Arc, Chrome, Brave, VSCode, Cursor, Discord, Slack, Spotify)",
       "category": "browser_electron_cache",
       "os_platform": "macos",
-      "description": "Caches de mídia e GPUCache do Chrome, Safari, VSCode, Discord e Spotify (preserva sessões e senhas).",
+      "description": "Caches de mídia, Code Cache e GPUCache do Safari, Arc, Chrome, Brave, Firefox, VSCode, Cursor, Discord, Slack, Teams, Notion, Figma e Spotify (preserva sessões e senhas).",
       "target_paths": [
+        "~/Library/Caches/com.apple.Safari/WebKitCache",
+        "~/Library/Caches/company.thebrowser.Browser",
+        "~/Library/Application Support/Arc/User Data/Default/Cache",
+        "~/Library/Application Support/Arc/User Data/Default/Code Cache",
+        "~/Library/Application Support/Arc/User Data/Default/GPUCache",
         "~/Library/Caches/Google/Chrome/Default/Cache",
         "~/Library/Caches/Google/Chrome/Default/Code Cache",
+        "~/Library/Caches/Google/Chrome/*/Cache",
+        "~/Library/Caches/Google/Chrome/*/Code Cache",
+        "~/Library/Application Support/Google/Chrome/*/Service Worker/CacheStorage",
+        "~/Library/Application Support/Google/Chrome/*/GPUCache",
+        "~/Library/Caches/BraveSoftware/Brave-Browser/Default/Cache",
+        "~/Library/Caches/BraveSoftware/Brave-Browser/*/Cache",
+        "~/Library/Application Support/Windsurf/Cache/Cache_Data",
+        "~/Library/Application Support/Windsurf/CachedData",
+        "~/Library/Application Support/Antigravity/Cache/Cache_Data",
+        "~/Library/Application Support/Antigravity/Code Cache",
+        "~/Library/Application Support/Postman/proxy",
+        "~/Library/Caches/Firefox/Profiles/*/cache2",
         "~/Library/Caches/com.microsoft.VSCode.ShipIt",
         "~/Library/Application Support/Code/Cache/Cache_Data",
         "~/Library/Application Support/Code/CachedData",
         "~/Library/Application Support/Code/GPUCache",
+        "~/Library/Application Support/Code/User/workspaceStorage/*/state.vscdb.backup",
+        "~/Library/Application Support/Cursor/Cache/Cache_Data",
+        "~/Library/Application Support/Cursor/CachedData",
+        "~/Library/Application Support/Cursor/GPUCache",
         "~/Library/Application Support/discord/Cache/Cache_Data",
         "~/Library/Application Support/discord/Code Cache",
         "~/Library/Application Support/discord/GPUCache",
+        "~/Library/Application Support/Slack/Cache/Cache_Data",
+        "~/Library/Application Support/Slack/Code Cache",
+        "~/Library/Application Support/Slack/GPUCache",
+        "~/Library/Application Support/Notion/Cache",
+        "~/Library/Application Support/Figma/DesktopProfile/v*/Cache",
         "~/Library/Caches/com.spotify.client/Data"
       ],
       "default_enabled": true,
       "risk_level": "safe"
     },
     {
-      "id": "mac_dev_caches",
-      "name": "Caches de Desenvolvimento (Xcode DerivedData, Simulators, Homebrew, pip, npm, Gradle, Cargo)",
+      "id": "mac_xcode_dev_caches",
+      "name": "Caches do Apple Xcode (DerivedData, iOS/watchOS/tvOS DeviceSupport, CoreSimulator)",
       "category": "dev_caches",
       "os_platform": "macos",
-      "description": "Artefatos reconstruíveis de compilação Xcode DerivedData, CoreSimulator, Homebrew, pip, npm, Gradle e Cargo.",
+      "description": "Artefatos pesados de compilação Xcode DerivedData, símbolos de iOS DeviceSupport antigos e caches do CoreSimulator.",
+      "target_paths": [
+        "~/Library/Developer/Xcode/DerivedData",
+        "~/Library/Developer/Xcode/iOS DeviceSupport",
+        "~/Library/Developer/Xcode/watchOS DeviceSupport",
+        "~/Library/Developer/Xcode/tvOS DeviceSupport",
+        "~/Library/Developer/CoreSimulator/Caches",
+        "~/Library/Caches/com.apple.dt.Xcode"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_jetbrains_caches",
+      "name": "Caches e Índices de IDEs JetBrains & Android Studio (IntelliJ, PyCharm, WebStorm, GoLand)",
+      "category": "dev_caches",
+      "os_platform": "macos",
+      "description": "Caches de indexação e logs acumulados por IDEs da JetBrains e Google Android Studio.",
+      "target_paths": [
+        "~/Library/Caches/JetBrains",
+        "~/Library/Logs/JetBrains",
+        "~/Library/Caches/Google/AndroidStudio*",
+        "~/Library/Logs/Google/AndroidStudio*"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_node_js_caches",
+      "name": "Caches do Ecossistema Node.js & Frontend (npm, Yarn, pnpm, Bun, Cypress, Playwright)",
+      "category": "dev_caches",
+      "os_platform": "macos",
+      "description": "Tarballs e binários de cache do npm, Yarn Classic/Berry, pnpm store cache, Bun, Cypress e navegadores de teste Playwright.",
+      "target_paths": [
+        "~/.npm/_cacache",
+        "~/.npm/_logs",
+        "~/Library/Caches/Yarn",
+        "~/.yarn/berry/cache",
+        "~/Library/Caches/pnpm",
+        "~/Library/pnpm/store/v3/tmp",
+        "~/.bun/install/cache",
+        "~/Library/Caches/Cypress",
+        "~/.cache/Cypress",
+        "~/Library/Caches/ms-playwright"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_python_dev_caches",
+      "name": "Caches do Ecossistema Python (pip, uv, Poetry, Ruff, Mypy, Pytest, Pre-commit)",
+      "category": "dev_caches",
+      "os_platform": "macos",
+      "description": "Wheels e pacotes baixados em cache pelo pip, Astral uv, Poetry, pre-commit e caches de análise estática (Ruff, Mypy, Pytest).",
+      "target_paths": [
+        "~/Library/Caches/pip",
+        "~/.cache/pip",
+        "~/Library/Caches/uv",
+        "~/.cache/uv",
+        "~/Library/Caches/pypoetry",
+        "~/.cache/pre-commit",
+        "~/.cache/mypy",
+        "~/.cache/ruff",
+        "~/.cache/pytest"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_jvm_native_mobile_caches",
+      "name": "Caches de Compilação JVM, Mobile, Rust & Go (Gradle, Cargo, Go Build, CocoaPods, Flutter)",
+      "category": "dev_caches",
+      "os_platform": "macos",
+      "description": "Caches de build do Gradle, crates do Rust Cargo, cache de compilação Go, pods do CocoaPods e temporários do Flutter/Pub.",
+      "target_paths": [
+        "~/.gradle/caches",
+        "~/.gradle/daemon",
+        "~/.m2/repository/.cache",
+        "~/.cargo/registry/cache",
+        "~/Library/Caches/go-build",
+        "~/Library/Caches/CocoaPods",
+        "~/.pub-cache/_temp"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_homebrew_caches",
+      "name": "Caches de Downloads e Logs do Homebrew (~/Library/Caches/Homebrew)",
+      "category": "dev_caches",
+      "os_platform": "macos",
+      "description": "Instaladores .tar.gz/.dmg já instalados e logs antigos mantidos pelo Homebrew.",
+      "target_paths": [
+        "~/Library/Caches/Homebrew",
+        "~/Library/Caches/Homebrew/downloads",
+        "~/Library/Logs/Homebrew"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_containers_vm_logs",
+      "name": "Logs e Temporários de Containers & VMs (Docker Desktop, OrbStack, Colima)",
+      "category": "dev_caches",
+      "os_platform": "macos",
+      "description": "Logs de execução de motores de container no macOS (Docker, OrbStack e Colima/Lima).",
+      "target_paths": [
+        "~/Library/Containers/com.docker.docker/Data/log",
+        "~/.orbstack/log",
+        "~/.colima/_lima/_networks"
+      ],
+      "default_enabled": true,
+      "risk_level": "safe"
+    },
+    {
+      "id": "mac_dev_caches",
+      "name": "Pacote Consolidado de Caches Dev (Xcode, Homebrew, pip, npm, Gradle, Cargo)",
+      "category": "dev_caches",
+      "os_platform": "macos",
+      "description": "Atalho consolidado para limpeza de artefatos de desenvolvimento (DerivedData, CoreSimulator, Homebrew, pip, npm, Gradle e Cargo).",
       "target_paths": [
         "~/Library/Developer/Xcode/DerivedData",
         "~/Library/Developer/CoreSimulator/Caches",
@@ -187,7 +377,7 @@
       "name": "Esvaziar Lixeira do Usuário (~/.Trash)",
       "category": "trash",
       "os_platform": "macos",
-      "description": "Remove arquivos descartados acumulados na Lixeira do usuário.",
+      "description": "Remove arquivos descartados acumulados na Lixeira do usuário via API nativa do Finder.",
       "target_paths": [
         "~/.Trash"
       ],
